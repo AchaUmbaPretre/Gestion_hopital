@@ -1,0 +1,229 @@
+// Form system — styles partagés des champs à DOM personnalisé
+// (FormDatePicker, FormAutocomplete, FormFileUpload).
+// Tokens : component.scss (--input-*, --field-*)
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--input-label-gap);
+}
+
+.label {
+  font-size: var(--field-label-size);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+}
+
+.required {
+  color: var(--color-status-danger);
+}
+
+.hint {
+  font-size: var(--field-helper-size);
+  color: var(--color-text-tertiary);
+  line-height: var(--line-height-snug);
+}
+
+.error {
+  font-size: var(--field-helper-size);
+  color: var(--color-status-danger);
+  line-height: var(--line-height-snug);
+}
+
+.control {
+  height: var(--input-height-lg);
+  padding: 0 var(--input-padding-x);
+  background-color: var(--color-bg-surface);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-input);
+  font-size: var(--font-size-body);
+  color: var(--color-text-primary);
+  transition: border-color var(--transition-micro), box-shadow var(--transition-micro);
+  font-family: var(--font-family-mono); // dates : largeurs stables
+
+  &:focus-visible {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px var(--color-primary-subtle);
+  }
+
+  &:hover:not(:disabled) {
+    border-color: var(--color-border-strong);
+  }
+
+  &:disabled {
+    background-color: var(--color-bg-inset);
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+}
+
+.controlError {
+  border-color: var(--color-status-danger);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+// ---------- Autocomplete ----------
+.autocomplete {
+  position: relative;
+}
+
+.autocompleteInput {
+  width: 100%;
+  height: var(--input-height-lg);
+  padding: 0 var(--input-padding-x);
+  background-color: var(--color-bg-surface);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-input);
+  font-size: var(--font-size-body);
+  color: var(--color-text-primary);
+  text-align: left;
+
+  &:focus-visible {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px var(--color-primary-subtle);
+  }
+}
+
+.listbox {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: var(--z-popover);
+  max-height: 260px;
+  overflow-y: auto;
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-dropdown);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-1);
+  list-style: none;
+  margin: 0;
+  animation: listbox-in var(--duration-fast) var(--ease-out);
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+
+.optionActive {
+  background-color: var(--color-primary-subtle);
+  color: var(--color-text-brand);
+}
+
+.optionMeta {
+  font-size: var(--font-size-caption);
+  color: var(--color-text-tertiary);
+  flex-shrink: 0;
+}
+
+.noOptions {
+  padding: var(--space-3);
+  text-align: center;
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-tertiary);
+}
+
+.loadingRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-tertiary);
+}
+
+// ---------- FileUpload ----------
+.dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-6) var(--space-4);
+  border: 1px dashed var(--color-border-default);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-bg-inset);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-body-sm);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color var(--transition-micro), background-color var(--transition-micro);
+
+  &:hover,
+  &:focus-visible {
+    border-color: var(--color-primary);
+    background-color: var(--color-primary-subtle);
+    outline: none;
+  }
+}
+
+.dropzoneActive {
+  border-color: var(--color-primary);
+  background-color: var(--color-primary-subtle);
+}
+
+.fileList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.fileRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background-color: var(--color-bg-inset);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-body-sm);
+}
+
+.fileName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fileSize {
+  color: var(--color-text-tertiary);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+@keyframes listbox-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

@@ -85,3 +85,8 @@ export const InboxIcon = makeIcon('InboxIcon', <><path d="M22 12h-6l-2 3h-4l-2-3
 export const TrendingUpIcon = makeIcon('TrendingUpIcon', <><path d="m3 17 6-6 4 4 8-8" /><path d="M14 7h7v7" /></>);
 export const TrendingDownIcon = makeIcon('TrendingDownIcon', <><path d="m3 7 6 6 4-4 8 8" /><path d="M14 17h7v-7" /></>);
 export const TrendingFlatIcon = makeIcon('TrendingFlatIcon', <path d="M3 12h18" />);
+
+// ---------- Table (DataTable) ----------
+export const TableIcon = makeIcon('TableIcon', <><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 10h18" /><path d="M9 10v10" /></>);
+export const PrinterIcon = makeIcon('PrinterIcon', <><path d="M6 9V3h12v6" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></>);
+export const UploadIcon = makeIcon('UploadIcon', <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="m17 8-5-5-5 5" /><path d="M12 3v12" /></>);

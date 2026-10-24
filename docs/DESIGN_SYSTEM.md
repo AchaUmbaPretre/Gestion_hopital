@@ -209,3 +209,78 @@ import { Button, Badge, Tooltip } from '…/design-system/components/atoms';
 7. Interdit d'ajouter des couleurs hors `primitive.scss`.
 8. Storybook (activation future) : `npx storybook@latest init` détecte les
    stories CSF3 existantes sans modification (ADR-003).
+
+## Étape 4 — DataTable & Form system
+
+### DataTable (`design-system/components/organisms/DataTable`)
+
+Grille div + rôles ARIA (`table`/`row`/`columnheader`/`cell`) : un seul
+code path pour les listes normales et les listes virtualisées
+(react-window `FixedSizeList` au-delà de **200 lignes**).
+
+| Capacité | Détail |
+|---|---|
+| Tri | multi-colonnes (clic = 1er niveau, Shift+clic = 2e), `aria-sort` |
+| Colonnes | masquables, persistées `gh.table.<storageKey>.hidden` |
+| Densité | compact / normal / comfortable (persistée `gh.table.density`, tokens `--table-row-height-*`) |
+| Sélection | header `indeterminate`, barre d'actions bulk, compteur |
+| Export | CSV (BOM + `;` Excel FR), Excel `.xlsx` (xlsx), Imprimer/PDF (`window.print` + CSS print scopée) |
+| Recherche | filtre rapide cliente sur les colonnes visibles |
+| Pagination | cliente automatique ou serveur (`pagination` prop) |
+| États | skeleton rows (8), EmptyState, actions au hover + focus |
+
+```tsx
+<DataTable
+  ariaLabel="Liste des patients"
+  data={patients}
+  columns={[
+    { key: 'nom', header: 'Nom', value: (p) => p.nom_patient },
+    { key: 'sexe', header: 'Sexe', value: (p) => p.sexe, width: '80px' },
+    { key: 'tel', header: 'Téléphone', value: (p) => p.tel, hiddenByDefault: true },
+  ]}
+  rowKey={(p) => p.id_patient}
+  selectable
+  bulkActions={[{ key: 'export', label: 'Exporter la sélection', onClick: (rows) => … }]}
+  rowActions={(p) => <IconButton label={`Voir ${p.nom_patient}`} onClick={() => …}><ArrowLeftIcon /></IconButton>}
+  onRowClick={(p) => navigate(`/patient/${p.id_patient}`)}
+  storageKey="patients"
+/>
+```
+
+**Règles** : `value` est la source de vérité (tri + export + recherche) ;
+`render` est purement visuel. L'export porte sur le jeu filtré/trié,
+pas seulement la page visible.
+
+### Form system (`design-system/components/molecules/forms`)
+
+Champs branchés **react-hook-form** (`Controller`) — validation zod
+déclarée dans le formulaire via `zodResolver`. L'erreur s'affiche
+après **300 ms de pause de frappe** (jamais pendant).
+
+| Composant | Sous le capot | Points clés |
+|---|---|---|
+| `FormInput` | atome `Input` | types text/email/password/tel/number |
+| `FormSelect` | atome `Select` natif | mobile-first, zéro dépendance |
+| `FormDatePicker` | `input type="date"` natif | picker OS, mono (dates stables) |
+| `FormAutocomplete` | combobox ARIA | debounce **250 ms**, `loadOptions`, ↑↓↵Échap, spinner |
+| `FormFileUpload` | dropzone | glisser-déposer, `accept`, `maxSizeMB`, liste + retrait |
+
+```tsx
+const schema = z.object({ nom: z.string().min(3), patient: z.any() });
+const { control, handleSubmit } = useForm({ resolver: zodResolver(schema) });
+
+<FormInput name="nom" control={control} label="Nom du patient" required />
+<FormAutocomplete
+  name="patient" control={control} label="Patient"
+  loadOptions={chercherPatients /* (q) => Promise<AutocompleteOption[]> */}
+/>
+```
+
+### Hooks formulaire (`shared/hooks`)
+
+- **`useDraftAutosave(key)`** — brouillon localStorage écrit debouncé
+  (500 ms) : `saveDraft(values)` sur `watch()`, `loadDraft()` au
+  montage, `clearDraft()` après soumission.
+- **`useFormGuard(isDirty)` + `<FormGuardDialog blocker={blocker} />`** —
+  confirmation d'abandon : `useBlocker` (navigation interne, data
+  router actif) + `beforeunload` (reload/fermeture).

@@ -1,0 +1,322 @@
+// DataTable — tokens : component.scss (--table-row-height-*, --card-*)
+.table {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  background-color: var(--color-bg-surface);
+  border: var(--card-border);
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow);
+  overflow: hidden;
+}
+
+// ---------- Barre d'outils ----------
+.toolbarRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border-subtle);
+  flex-wrap: wrap;
+}
+
+.toolbarSlot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1;
+  min-width: 0;
+}
+
+.toolbarTools {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.menuHost {
+  position: relative;
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: var(--z-popover);
+  min-width: 200px;
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-dropdown);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: menu-in var(--duration-fast) var(--ease-out);
+}
+
+.menuItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 6px var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-primary);
+  cursor: pointer;
+
+  &:hover {
+    background-color: var(--color-bg-inset);
+  }
+}
+
+.menuAction {
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: 7px var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-primary);
+  cursor: pointer;
+
+  &:hover {
+    background-color: var(--color-bg-inset);
+  }
+
+  &:focus-visible {
+    outline: var(--focus-ring);
+    outline-offset: -2px;
+  }
+}
+
+// ---------- Actions bulk ----------
+.bulkBar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background-color: var(--color-primary-subtle);
+  border-bottom: 1px solid var(--color-border-subtle);
+  animation: menu-in var(--duration-fast) var(--ease-out);
+}
+
+.bulkCount {
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-brand);
+  margin-right: var(--space-2);
+}
+
+// ---------- Grille ----------
+.scroll {
+  overflow: auto;
+  max-height: 70vh;
+}
+
+.headerGroup {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  background-color: var(--color-bg-inset);
+}
+
+.headRow,
+.row {
+  display: grid;
+  align-items: stretch;
+  min-width: max-content;
+}
+
+.headRow {
+  border-bottom: 1px solid var(--color-border-default);
+}
+
+.headCell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--table-row-height-normal) 0;
+  height: var(--table-header-height);
+  box-sizing: border-box;
+  padding: 0 var(--space-3);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sortButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+  border-radius: var(--radius-xs);
+
+  &:hover {
+    color: var(--color-text-primary);
+  }
+
+  &:focus-visible {
+    outline: var(--focus-ring);
+    outline-offset: 1px;
+  }
+}
+
+.sortIcon {
+  display: inline-flex;
+  opacity: 0.35;
+  transition: transform var(--transition-micro), opacity var(--transition-micro);
+}
+
+.sortActive {
+  opacity: 1;
+  color: var(--color-text-brand);
+}
+
+.sortAsc {
+  transform: rotate(180deg);
+}
+
+// ---------- Lignes ----------
+.row {
+  border-bottom: 1px solid var(--color-border-subtle);
+  height: var(--table-row-height-normal);
+  background-color: var(--color-bg-surface);
+  transition: background-color var(--transition-micro);
+}
+
+.compact .row {
+  height: var(--table-row-height-compact);
+}
+
+.comfortable .row {
+  height: var(--table-row-height-comfortable);
+}
+
+.row:hover,
+.row:focus-visible {
+  background-color: var(--color-primary-subtle);
+
+  .cellActions {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+.row:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: -2px;
+}
+
+.rowSelected,
+.rowSelected:hover {
+  background-color: var(--color-selection-bg);
+}
+
+.rowClickable {
+  cursor: pointer;
+}
+
+.cell {
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-3);
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-primary);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.cell.right {
+  justify-content: flex-end;
+  font-variant-numeric: tabular-nums;
+}
+
+.cell.center {
+  justify-content: center;
+}
+
+.cellCheck {
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.cellCheck input {
+  accent-color: var(--color-primary);
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+// Actions rapides : révélées au hover / focus (jamais perdues au clavier)
+.cellActions {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--transition-micro);
+  gap: var(--space-1);
+  justify-content: flex-end;
+}
+
+.virtualList {
+  overflow-x: hidden !important;
+
+  > div[role='presentation'] {
+    min-width: max-content;
+  }
+}
+
+// ---------- Impression / PDF ----------
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  [role='table'],
+  [role='table'] * {
+    visibility: visible;
+  }
+
+  [role='table'] {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    max-height: none;
+    box-shadow: none;
+    border: none;
+  }
+
+  .toolbarRow,
+  .bulkBar,
+  .cellActions,
+  .cellCheck {
+    display: none !important;
+  }
+}
+
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
