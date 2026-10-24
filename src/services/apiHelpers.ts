@@ -34,6 +34,20 @@ export function lireNombre(v: unknown): number | null {
 }
 
 /**
+ * Normalisation recherche : insensible à la casse ET aux accents
+ * (Kabila/KABILA/Kabïla sont la même personne) — crucial pour la
+ * recherche « instantanée » par un personnel qui tape sans accents.
+ * Source unique partagée (store RDC, réconciliations serveur).
+ */
+export function normaliser(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+}
+
+/**
  * Première date valide parmi les noms de colonnes habituels de
  * api_hopital (les tables n'ont pas de convention homogène).
  */

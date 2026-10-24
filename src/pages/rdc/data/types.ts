@@ -77,6 +77,12 @@ export interface Medicament {
   stock: number;
   /** En dessous de ce seuil = alerte "stock bas" (orange). */
   seuil: number;
+  /**
+   * Origine (phase 4) : 'api' = stock réel GET /api/pharma (id
+   * numérique réutilisable pour POST /api/ordonnance) ; 'local' = seed
+   * de démonstration hors ligne. Absent = prototype antérieur.
+   */
+  source?: 'api' | 'local';
 }
 
 export type CategorieActe =
@@ -110,6 +116,21 @@ export interface Ordonnance {
   dateIso: string;
   lignes: LigneOrdonnance[];
   statut: 'en_attente' | 'delivree';
+  // ---- Phase 4 (branchement POST /api/consult + /api/ordonnance) ----
+  /**
+   * Id MySQL du type de consultation (FK `typeconsultation`) —
+   * obligatoire pour POST /api/consult ; null si l'API n'a jamais
+   * été joignable (le rejeu résoudra par nom, sinon ErreurAttente).
+   */
+  typeConsultationId?: number | null;
+  /** Libellé du type (réconciliation par nom au rejeu si id null). */
+  typeConsultationNom?: string;
+  /** Id MySQL du médecin (users.id) — JAMAIS deviné au rejeu. */
+  personnelId?: number | null;
+  /** Diagnostic structuré (colonne `diagnostic` de `consultation`). */
+  diagnostic?: string;
+  /** Notes cliniques (motif, antécédents, examen) — colonne `notes`. */
+  notes?: string;
 }
 
 /** Trace de triage (qui, quoi, niveau, orientation). */

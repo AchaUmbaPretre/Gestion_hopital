@@ -1,10 +1,13 @@
 /**
- * Tests du store RDC — phase 3 (facturation réelle) :
- *  - registerMouvement trace une facture calibrée backend (service_details,
- *    statut, extras RDC) + un paiement SEULEMENT s'il y a eu encaissement ;
- *  - ajouterAcompte : solde de la facture d'origine diminué, reçu
- *    d'acompte avec factureRefOrigine, trace creer_paiement SEULE
- *    (pas de seconde facture), facture_locale = facture d'origine.
+ * Tests du store RDC — phases 3-4 :
+ *  - phase 3 : registerMouvement trace une facture calibrée backend
+ *    (service_details, statut, extras RDC) + un paiement SEULEMENT
+ *    s'il y a eu encaissement ; ajouterAcompte : solde de la facture
+ *    d'origine diminué, reçu d'acompte avec factureRefOrigine, trace
+ *    creer_paiement SEULE (pas de seconde facture) ;
+ *  - phase 4 : hydraterMedicamentsServeur (« local gagne ») ;
+ *    addOrdonnance trace le payload STRUCTURÉ de la chaîne réelle
+ *    (consultation → lignes ordonnance + traitement).
  *
  * Dexie (outbox) tourne sur fake-indexeddb pour inspecter les traces.
  */
@@ -13,11 +16,14 @@ import 'fake-indexeddb/auto';
 
 import { db } from '../../../offline/db';
 import { reinitialiserOutbox } from '../../../offline/outbox';
+import type { Patient } from './types';
 import {
   ajouterAcompte,
+  hydraterMedicamentsServeur,
   lireEtatRdc,
   registerMouvement,
   resetRdcState,
+  addOrdonnance,
 } from './rdcStore';
 
 describe('rdcStore — facturation (phase 3)', () => {
@@ -167,5 +173,112 @@ describe('rdcStore — facturation (phase 3)', () => {
     expect(ajouterAcompte('REC-INEXISTANTE', 5, 'especes_fc')).toBeNull();
     expect(ajouterAcompte(origine.reference, 5, 'especes_fc')).toBeNull(); // déjà soldée
     expect(ajouterAcompte(origine.reference, 0, 'especes_fc')).toBeNull(); // montant nul
+  });
+});
+
+describe('rdcStore — consultation & ordonnances (phase 4)', () => {
+  beforeEach(async () => {
+    await reinitialiserOutbox();
+    resetRdcState();
+    localStorage.clear();
+    resetRdcState(); // re-seed propre après purge localStorage
+  });
+
+  async function viderFile(): Promise<void> {
+    for (let i = 0; i < 5; i += 1) {
+      await new Promise((resoudre) => setTimeout(resoudre, 10));
+    }
+  }
+
+  test('hydraterMedicamentsServeur : ajoute les ids numériques, NE détruit PAS le stock local', () => {
+    const avant = lireEtatRdc().medicaments;
+    const stockLocalPar = avant.find((m) => m.id === 'med-par');
+    hydraterMedicamentsServeur([
+      { id: '12', nom: 'Paracétamol 500 mg (serveur)', classe: '—', forme: '—', prixUsd: 0.1, stock: 9999, seuil: 10, source: 'api' },
+      { id: '55', nom: 'Vitamine BComplexe', classe: '—', forme: '—', prixUsd: 0.5, stock: 300, seuil: 10, source: 'api' },
+    ]);
+
+    const apres = lireEtatRdc().medicaments;
+    expect(apres.find((m) => m.id === '55')).toBeDefined(); // ajouté
+    expect(apres.find((m) => m.id === '12')).toBeDefined(); // ajouté (id numérique inconnu)
+    expect(apres.find((m) => m.id === 'med-par')?.stock).toBe(stockLocalPar?.stock); // seed intact
+
+    // Hydratation idempotente : pas de doublon au second appel.
+    hydraterMedicamentsServeur([
+      { id: '55', nom: 'Vitamine BComplexe', classe: '—', forme: '—', prixUsd: 0.5, stock: 300, seuil: 10, source: 'api' },
+    ]);
+    expect(lireEtatRdc().medicaments.filter((m) => m.id === '55')).toHaveLength(1);
+  });
+
+  test('addOrdonnance : payload structuré pour la chaîne consultation → lignes', async () => {
+    // Patient du seed = LOCAL (dossier INIT-ANNÉE-N°) → patient_id null
+    // dans le payload de consultation : le rejeu réconciliera par
+    // identité (nom + prénom + téléphone) — jamais de dossier imprimable
+    // envoyé à la colonne INT MySQL.
+    const patientLocal = lireEtatRdc().patients[0] as Patient;
+
+    const ordo = addOrdonnance({
+      patientId: patientLocal.id,
+      medecin: 'Dr Jean Kabasele',
+      service: 'Chirurgie',
+      dateIso: '2026-10-24T09:15:00.000Z',
+      lignes: [{ medicamentId: 'med-par', posologie: '1 cp x 3/jour', dureeJours: 5, quantite: 15 }],
+      statut: 'en_attente',
+      typeConsultationId: 3,
+      typeConsultationNom: 'Consultation générale',
+      personnelId: 7,
+      diagnostic: 'Paludisme simple',
+      notes: 'Motif : fièvre',
+    });
+    expect(ordo.id).toMatch(/^ORD-\d{4}-\d{4}$/);
+
+    await viderFile();
+    const entree = (await db!.outbox.toArray()).find((e) => e.type === 'creer_ordonnance');
+    expect(entree?.endpoint).toBe('/api/consult'); // le POST INITIAL est la consultation
+    const payload = entree?.payload as Record<string, unknown>;
+    expect(payload['ordonnance_locale']).toBe(ordo.id);
+    expect(payload['date_ordre']).toBe('2026-10-24 09:15:00');
+    const consultation = payload['consultation'] as Record<string, unknown>;
+    expect(consultation['patient_id']).toBeNull(); // patient local → réconciliation au rejeu
+    // L'identité de réconciliation voyage TOUJOURS (nom + prénom + tel).
+    const identite = payload['patient_identite'] as Record<string, unknown>;
+    expect(identite['nom']).toBe(patientLocal.nom);
+    expect(identite['prenom']).toBe(patientLocal.prenom);
+    expect(consultation['personnel_id']).toBe(7); // JAMAIS deviné au rejeu
+    expect(consultation['id_type_consultation']).toBe(3);
+    expect(consultation['diagnostic']).toBe('Paludisme simple');
+
+    // Ligne : l'id numérique du médicament est résolu ici quand connu ;
+    // le seed 'med-par' est LOCAL → null + nom pour réconciliation par nom.
+    const ligne = (payload['lignes'] as Array<Record<string, unknown>>)[0] as Record<string, unknown>;
+    expect(ligne['medicament_id']).toBeNull();
+    expect(ligne['nom_medicament']).toBe('Paracétamol 500 mg');
+    expect(ligne['quantite']).toBe(15);
+    expect(ligne['posologie']).toBe('1 cp x 3/jour');
+    expect(ligne['duree_jours']).toBe(5);
+  });
+
+  test('addOrdonnance : médicament serveur hydraté → medicament_id numérique direct', async () => {
+    hydraterMedicamentsServeur([
+      { id: '12', nom: 'Paracétamol 500 mg (serveur)', classe: '—', forme: '—', prixUsd: 0.1, stock: 100, seuil: 10, source: 'api' },
+    ]);
+    addOrdonnance({
+      patientId: '77',
+      medecin: 'Dr Kabongo',
+      service: 'Médecine interne',
+      dateIso: '2026-10-24T10:00:00.000Z',
+      lignes: [{ medicamentId: '12', posologie: '1 cp x 2/jour', dureeJours: 3, quantite: 6 }],
+      statut: 'en_attente',
+      typeConsultationId: null,
+      typeConsultationNom: 'Consultation générale',
+      personnelId: 7,
+      diagnostic: '',
+      notes: '',
+    });
+    await viderFile();
+    const payload = ((await db!.outbox.toArray()).find((e) => e.type === 'creer_ordonnance')?.payload ??
+      {}) as Record<string, unknown>;
+    const ligne = (payload['lignes'] as Array<Record<string, unknown>>)[0] as Record<string, unknown>;
+    expect(ligne['medicament_id']).toBe(12); // directement réutilisable par le rejeu
   });
 });

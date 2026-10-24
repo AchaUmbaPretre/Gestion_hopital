@@ -16,6 +16,7 @@ import type {
 import { seedRdcState } from './seed';
 import { enregistrerMutation } from '../../../offline/outbox';
 import { noterPatientRecent } from '../../../offline/db';
+import { normaliser } from '../../../services/apiHelpers';
 import { construirePayloadCreationPatient } from '../../../services/patientsApi';
 import {
   construirePayloadFacture,
@@ -75,16 +76,10 @@ export function lireEtatRdc(): RdcState {
 
 // ------------------------------------------------------------
 // Normalisation recherche : insensible à la casse ET aux accents
-// (Kabila/KABILA/Kabïla) — crucial pour la recherche "instantanée"
-// par un personnel qui tape sans accents.
+// (Kabila/KABILA/Kabïla) — source unique : services/apiHelpers.ts
+// (partagée avec les réconciliations serveur, phase 4).
 // ------------------------------------------------------------
-export function normaliser(s: string): string {
-  return s
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim();
-}
+export { normaliser };
 
 /** Recherche patient : nom, prénom, téléphone, n° dossier (brief 3.2). */
 export function searchPatients(patients: Patient[], query: string): Patient[] {
@@ -201,15 +196,68 @@ export function updatePatient(id: string, patch: Partial<Omit<Patient, 'id'>>): 
   tracer('maj_patient', 'local', null, { id, patch });
 }
 
+/**
+ * Hydratation du stock depuis GET /api/pharma (phase 4) :
+ *  - les médicaments serveur inconnus localement sont AJOUTÉS (leur id
+ *    numérique est directement réutilisable pour POST /api/ordonnance) ;
+ *  - un médicament DÉJÀ connu localement n'est PAS écrasé : le stock
+ *    local porte les décréments de délivrance de la journée (hors
+ *    ligne) — « local gagne », la divergence se corrige à la session
+ *    suivante (voir fusionnerMedicaments, useConsultation.ts).
+ * Fire-and-forget amical : l'action est appelée après une requête
+ * réussie, les décréments locaux restent la source de vérité du jour.
+ */
+export function hydraterMedicamentsServeur(api: Medicament[]): void {
+  const connus = new Set(state.medicaments.map((m) => m.id));
+  const ajouts = api.filter((m) => !connus.has(m.id) && /^\d+$/.test(m.id));
+  if (ajouts.length === 0) return;
+  setState({ medicaments: [...state.medicaments, ...ajouts] });
+}
+
 export function addOrdonnance(o: Omit<Ordonnance, 'id'>): Ordonnance {
   const ordonnance: Ordonnance = {
     ...o,
     id: `ORD-${new Date().getFullYear()}-${String(state.ordonnances.length + 1).padStart(4, '0')}`,
   };
   setState({ ordonnances: [ordonnance, ...state.ordonnances] });
-  // Outbox : POST /ordonnance existe — rejeu auto (payload complet).
-  tracer('creer_ordonnance', 'api', '/api/ordonnance', ordonnance, `creer_ordonnance:${ordonnance.id}`);
+  // Outbox — phase 4 : payload STRUCTURÉ pour l'envoi métier. Un seul
+  // type métier `creer_ordonnance` couvre la chaîne réelle :
+  //   POST /api/consult → id_consultation
+  //   puis PAR ligne : POST /api/ordonnance + POST /api/traitement
+  // (l'INNER JOIN traitement de GET /api/ordonnance/one impose la
+  // ligne de traitement ; sans elle, la pharmacie voit une ordonnance
+  // vide). Le patient et l'id numérique du médicament sont résolus
+  // ICI quand ils sont connus, au rejeu sinon (réconciliation par nom).
   const patientOrdo = state.patients.find((p) => p.id === ordonnance.patientId);
+  const payload = {
+    ordonnance_locale: ordonnance.id,
+    date_ordre: ordonnance.dateIso.slice(0, 19).replace('T', ' '),
+    patient_ref: ordonnance.patientId,
+    patient_identite: patientOrdo
+      ? { nom: patientOrdo.nom, prenom: patientOrdo.prenom, telephone: patientOrdo.telephone }
+      : null,
+    consultation: {
+      patient_id: idPatientServeur(patientOrdo),
+      personnel_id: ordonnance.personnelId ?? null,
+      id_type_consultation: ordonnance.typeConsultationId ?? null,
+      nom_type_consultation: ordonnance.typeConsultationNom ?? '',
+      date_consultation: ordonnance.dateIso.slice(0, 19).replace('T', ' '),
+      diagnostic: ordonnance.diagnostic ?? '',
+      notes: ordonnance.notes ?? '',
+    },
+    lignes: ordonnance.lignes.map((l) => {
+      const med = state.medicaments.find((m) => m.id === l.medicamentId);
+      const idNum = med && /^\d+$/.test(med.id) ? Number(med.id) : null;
+      return {
+        medicament_id: idNum,
+        nom_medicament: med?.nom ?? '',
+        quantite: l.quantite,
+        posologie: l.posologie,
+        duree_jours: l.dureeJours,
+      };
+    }),
+  };
+  tracer('creer_ordonnance', 'api', '/api/consult', payload, `creer_ordonnance:${ordonnance.id}`);
   if (patientOrdo) noterRecent(patientOrdo);
   return ordonnance;
 }

@@ -459,3 +459,75 @@ démonstration.
    autorité → « Autoriser la prise en charge » — jamais bloqué par le
    paiement (arrêté n°1250/2025), trace complète, badge « Prise en
    charge autorisée ».
+
+## 17. Branchement API réelle — consultation & ordonnances (phase 4)
+
+### 17.1 Endpoints consommés (api_hopital, mise à niveau B1)
+
+| Endpoint | Usage phase 4 |
+|---|---|
+| `GET /api/consult/consult_type` | types de consultation (nom + prix → liste de l'écran, réconciliation par nom) |
+| `GET /api/docteur` | médecins (réponse enveloppée `{success, data}` — id `users.id` requis par POST /consult) |
+| `GET /api/pharma` | stock temps réel → hydratation du store (`hydraterMedicamentsServeur`, « local gagne ») |
+| `POST /api/consult` | `{patientId, personnelId, id_typeConsultation, dateConsultation, diagnostic, notes}` → **id_consultation renvoyé (B1)** |
+| `POST /api/ordonnance` | `{consultationId, medicamentId, quantite, dateOrdre}` — UNE ligne par médicament |
+| `POST /api/traitement` | `{consultationId, medicament, dose, frequence, duree, instructions}` — OBLIGATOIRE : `GET /api/ordonnance/one` fait un INNER JOIN traitement |
+
+**Mise à niveau backend B1 (commit api_hopital 2b9da37, autorisée par le
+propriétaire)** : tous les POST renvoient désormais l'id créé
+(`id_patient`, `id_consultation`, `id_ordonnance`, `id_traitement`,
+`id_paiement`, `id_facture`) — les modèles créateurs ont été convertis
+au style callback (le package `mysql` ne renvoie RIEN via
+`await pool.query()` sans callback) ; `GET /api/patient?q=` recherche
+nom/prénom/téléphone ; `POST /api/pharma/stock` ajuste le stock de
+façon atomique (jamais négatif) — prêt pour la phase 5.
+
+### 17.2 Chaîne de synchronisation `creer_ordonnance`
+
+Un SEUL type métier dans l'outbox couvre la chaîne réelle (rejeu
+`offline/envoiMetier.ts → envoyerOrdonnance`) :
+
+1. **Patient serveur** : numérique dans le payload, cache B1
+   (`map_patient:<dossier>`) sinon réconciliation identité — sinon
+   ErreurAttente (FIFO : le patient est toujours traité avant).
+2. **Médecin** (`personnel_id`) : JAMAIS deviné — si la liste des
+   médecins n'a jamais été chargée sur ce poste, ErreurAttente
+   explicite (l'attribution d'un acte médical est une donnée légale).
+3. **Type de consultation** : id numérique, sinon réconciliation par
+   nom normalisé (GET consult_type).
+4. **POST /api/consult** → `id_consultation` (B1) ; secours : le POST
+   n'est JAMAIS relancé — réconciliation patient+date+diagnostic ;
+   l'id est mis en cache (`map_consult:<ordonnance_locale>`) : un
+   cycle interrompu (ligne en attente) ne crée JAMAIS de doublon de
+   consultation.
+5. **PAR ligne** : id médicament (numérique direct, cache
+   `map_medic:<nom>` ou correspondance par nom sur GET /api/pharma) →
+   POST /api/ordonnance + POST /api/traitement (clés d'idempotence
+   dérivées `cle:ordo:i` / `cle:trait:i` — le dédupe serveur B2 les
+   rend définitifs).
+
+Tout prérequis manquant → ErreurAttente : l'entrée attend SANS
+consommer d'essai, jamais d'ordonnance partielle.
+
+### 17.3 Écran Consultation (réel)
+
+- Bandeau référentiels TOUT VISIBLE : Type de consultation (avec
+  prix USD) + Médecin — listes du dernier cache SW hors ligne, défaut
+  = premier de la liste, jamais modifié derrière le dos de l'agent.
+- Médicaments = stock HYDRATÉ (serveur + seed local, décréments du
+  jour préservés) ; badges de stock et alternatives inchangés.
+- Notes cliniques complètes dans la colonne `notes` : motif,
+  antécédents, constantes (T°/TA/pouls/poids), observations — la
+  traçabilité ne se limite pas au diagnostic structuré.
+- Auto-save 30 s + restauration INCHANGÉS (anti-coupure).
+
+### 17.4 Gaps restants (mise à jour après B1)
+
+| Gap | État |
+|---|---|
+| ~~POST sans id créé~~ | ✅ B1 résolu (frontend consomme, fallback réconciliation conservé) |
+| ~~GET /patients?q=~~ | ✅ B1 résolu (consommation frontend à la phase 5) |
+| ~~Décrément de stock~~ | ✅ B1 (`POST /api/pharma/stock`) — branchement phase 5 |
+| Colonnes mutuelle / exonération / taux / dossier + table triage | migration SQL à livrer (B2) + persistance conditionnelle |
+| Dédupe `X-Idempotence-Key` côté serveur | middleware à livrer (B2) |
+| `classe_therepeutique` + `seuil` sur `medicament` | migration SQL (B2) ; alternative = carte de correspondance frontend |

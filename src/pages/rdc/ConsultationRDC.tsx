@@ -16,6 +16,11 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import styles from './rdc.module.scss';
 import { EnTeteRDC, ModalApercu, RecherchePatient, StockBadge } from './components';
 import { useRdcState, addOrdonnance, trouverAlternative } from './data/rdcStore';
+import {
+  useDocteursRdc,
+  useMedicamentsRdc,
+  useTypesConsultationRdc,
+} from './data/useConsultation';
 import type { LigneOrdonnance, Ordonnance, Patient } from './data/types';
 import { OrdonnanceDoc } from './printDocuments';
 import { loadDraft, clearDraft, useDraftAutosave, type Draft } from './hooks';
@@ -47,6 +52,31 @@ export default function ConsultationRDC() {
     () => state.patients.find((p) => p.id === patientId) ?? null,
     [state.patients, patientId],
   );
+
+  // ---- Phase 4 : référentiels réels (types de consultation, médecins,
+  // stock médicaments hydraté depuis GET /api/pharma) — hors ligne, le
+  // dernier cache SW + le seed local gardent l'écran utilisable.
+  const { medicaments } = useMedicamentsRdc();
+  const { types: typesConsultation, disponible: typesDispo } = useTypesConsultationRdc();
+  const { docteurs, disponible: docteursDispo } = useDocteursRdc();
+
+  const [typeConsultationId, setTypeConsultationId] = useState<number | null>(null);
+  const [personnelId, setPersonnelId] = useState<number | null>(null);
+
+  // Défauts : premier type / premier médecin dès que la liste arrive
+  // (jamais modifiés derrière le dos de l'agent si un choix est fait).
+
+  useEffect(() => {
+    if (typeConsultationId === null && typesConsultation.length > 0) {
+      setTypeConsultationId(typesConsultation[0]?.id ?? null);
+    }
+  }, [typesConsultation, typeConsultationId]);
+
+  useEffect(() => {
+    if (personnelId === null && docteurs.length > 0) {
+      setPersonnelId(docteurs[0]?.id ?? null);
+    }
+  }, [docteurs, personnelId]);
 
   const [draft, setDraft] = useState<BrouillonConsultation>(BROUILLON_VIDE);
   const [apercuOrdonnance, setApercuOrdonnance] = useState<Ordonnance | null>(null);
@@ -88,13 +118,40 @@ export default function ConsultationRDC() {
 
   function enregistrer(imprimer: boolean) {
     if (!patient || !pret) return;
+    const docteur = docteurs.find((d) => d.id === personnelId) ?? null;
+    const type = typesConsultation.find((t) => t.id === typeConsultationId) ?? null;
+    // Notes cliniques complètes (colonne `notes` de `consultation`) :
+    // motif, antécédents, constantes et observations voyagent avec la
+    // consultation — la traçabilité médicale ne se limite pas au champ
+    // diagnostic structuré.
+    const constantes = [
+      draft.examen.temperature !== '' ? `T° ${draft.examen.temperature}°C` : '',
+      draft.examen.tension !== '' ? `TA ${draft.examen.tension}` : '',
+      draft.examen.pouls !== '' ? `Pouls ${draft.examen.pouls}/min` : '',
+      draft.examen.poids !== '' ? `Poids ${draft.examen.poids} kg` : '',
+    ]
+      .filter(Boolean)
+      .join(' · ');
+    const notes = [
+      draft.motif !== '' ? `Motif : ${draft.motif}` : '',
+      draft.antecedents !== '' ? `Antécédents : ${draft.antecedents}` : '',
+      constantes !== '' ? `Constantes : ${constantes}` : '',
+      draft.examenNotes !== '' ? `Observations : ${draft.examenNotes}` : '',
+    ]
+      .filter(Boolean)
+      .join(' | ');
     const ordonnance = addOrdonnance({
       patientId: patient.id,
-      medecin: 'Dr. Kabongo',
-      service: 'Médecine interne',
+      medecin: docteur ? `Dr ${docteur.nom}` : 'Dr. Kabongo',
+      service: docteur?.specialite !== undefined && docteur?.specialite !== '' ? docteur.specialite : 'Médecine interne',
       dateIso: new Date().toISOString(),
       lignes: lignesValides,
       statut: 'en_attente',
+      typeConsultationId: type ? type.id : null,
+      typeConsultationNom: type ? type.nom : '',
+      personnelId: docteur ? docteur.id : null,
+      diagnostic: draft.diagnostic.trim(),
+      notes,
     });
     clearDraft(cleBrouillon);
     setDraft(BROUILLON_VIDE);
@@ -207,7 +264,7 @@ export default function ConsultationRDC() {
       children: (
         <div className={styles.stack}>
           {draft.prescriptions.map((ligne, i) => {
-            const med = state.medicaments.find((m) => m.id === ligne.medicamentId);
+            const med = medicaments.find((m) => m.id === ligne.medicamentId);
             const alt = ligne.medicamentId ? trouverAlternative(ligne.medicamentId) : null;
             const rupture = med ? med.stock <= 0 : false;
             return (
@@ -222,7 +279,7 @@ export default function ConsultationRDC() {
                       onChange={(e) => majPrescription(i, { medicamentId: e.target.value })}
                     >
                       <option value="">— Choisir —</option>
-                      {state.medicaments.map((m) => (
+                      {medicaments.map((m) => (
                         <option key={m.id} value={m.id}>{m.nom} ({m.forme})</option>
                       ))}
                     </select>
@@ -315,6 +372,54 @@ export default function ConsultationRDC() {
         </div>
       )}
 
+      {/* Référentiels réels (phase 4) : tout visible d'un coup — pas
+          de progressive disclosure (brief RDC). Hors ligne : listes du
+          dernier cache SW, saisie toujours possible. */}
+      <div className={styles.row} style={{ marginBottom: 12 }}>
+        <label style={{ minWidth: 220 }}>
+          Type de consultation
+          <select
+            className={styles.rechercheInput}
+            style={{ minHeight: 44, marginTop: 4 }}
+            value={typeConsultationId ?? ''}
+            onChange={(e) => setTypeConsultationId(e.target.value === '' ? null : Number(e.target.value))}
+          >
+            {typesConsultation.length === 0 ? (
+              <option value="">Liste non chargée (hors ligne)</option>
+            ) : null}
+            {typesConsultation.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.nom} — {t.prixUsd.toFixed(2)} $
+              </option>
+            ))}
+          </select>
+        </label>
+        <label style={{ minWidth: 220 }}>
+          Médecin
+          <select
+            className={styles.rechercheInput}
+            style={{ minHeight: 44, marginTop: 4 }}
+            value={personnelId ?? ''}
+            onChange={(e) => setPersonnelId(e.target.value === '' ? null : Number(e.target.value))}
+          >
+            {docteurs.length === 0 ? (
+              <option value="">Liste non chargée (hors ligne)</option>
+            ) : null}
+            {docteurs.map((d) => (
+              <option key={d.id} value={d.id}>
+                Dr {d.nom}
+                {d.specialite !== '' ? ` — ${d.specialite}` : ''}
+              </option>
+            ))}
+          </select>
+        </label>
+        {!typesDispo || !docteursDispo ? (
+          <span className={styles.badge + ' ' + styles.warn} style={{ alignSelf: 'flex-end' }}>
+            Hors ligne : la saisie reste possible, l'envoi attendra la synchronisation
+          </span>
+        ) : null}
+      </div>
+
       <Collapse
         items={sections}
         defaultActiveKey={['motif', 'prescriptions']}
@@ -360,7 +465,7 @@ export default function ConsultationRDC() {
         onFermer={() => setApercuOrdonnance(null)}
       >
         {apercuOrdonnance ? (
-          <OrdonnanceDoc ordonnance={apercuOrdonnance} patient={patient ?? undefined} medicaments={state.medicaments} />
+          <OrdonnanceDoc ordonnance={apercuOrdonnance} patient={patient ?? undefined} medicaments={medicaments} />
         ) : null}
       </ModalApercu>
     </main>

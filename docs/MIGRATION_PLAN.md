@@ -181,13 +181,17 @@ Critères : encaissement totalité en 3 clics ; reçu A4 imprimé
 immédiatement ; traces exonération/urgence exportables (audit) —
 tous les trois respectés (voir §11 de RDC_BUSINESS_LOGIC.md).
 
-## Phase 4 — Consultation & ordonnances
+## Phase 4 — Consultation & ordonnances ✅ (FAIT)
 
 Remplace : `pages/consultation/*`, `pages/ordonnance/*`. Branchement : `POST /consult` + `POST /ordonnance`.
 
-1. Le prototype « mode crayon » conserve son auto-save 30 s ; l'enregistrement écrit en base (ou en file offline).
-2. Prescription : stock réel `GET /pharma` (rafraîchi à l'ouverture) ; alternative thérapeutique au clic tant que le backend n'a pas la colonne `classe` (carte de correspondance embarquée, maintenue côté frontend).
-3. « Enregistrer et imprimer l'ordonnance » = 1 clic → base + file pharmacie + A5.
+**État : livré. Détail complet dans RDC_BUSINESS_LOGIC.md §17.**
+
+1. [x] Le prototype « mode crayon » conserve son auto-save 30 s ; l'enregistrement écrit en base via la chaîne outbox `creer_ordonnance` (POST /api/consult → id_consultation → PAR ligne POST /api/ordonnance + /api/traitement — l'INNER JOIN traitement de la requête de détail impose la ligne de traitement).
+2. [x] Prescription : stock réel `GET /pharma` (hydratation du store React Query, « local gagne » pour les décréments du jour) ; alternative thérapeutique au clic tant que la colonne `classe` n'existe pas (carte de correspondance embarquée, maintenue côté frontend).
+3. [x] « Enregistrer et imprimer l'ordonnance » = 1 clic → base + file pharmacie + A5.
+4. [x] Référentiels réels TOUT VISIBLE : type de consultation (prix USD) + médecin (GET /api/docteur) — hors ligne : dernier cache SW, saisie possible, envoi en ErreurAttente explicite (médecin JAMAIS deviné).
+5. [x] **Backend B1 (autorisé, commit api_hopital 2b9da37)** : tous les POST renvoient l'id créé (style callback — le package `mysql` perdait les insertId) ; `GET /api/patient?q=` (recherche serveur nom/prénom/téléphone) ; `POST /api/pharma/stock` (ajustement atomique, jamais négatif) ; correction injection SQL `getConsultOne`. Frontend : raccourci « id renvoyé → cache direct » pour patients/factures (réconciliation = secours antérieur à B1).
 
 ## Phase 5 — Pharmacie & laboratoire
 
@@ -221,7 +225,7 @@ Remplace : `pages/admission/*`, `pages/traitement/*`, `pages/rdv/*`.
 3. Ant Design reste l'**unique** lib UI (aucune lib concurrente) ; le design system maison l'habille via tokens.
 4. Redux limité à auth/notifications ; server state → React Query.
 5. Chaque commit = 1 module cohérent + tests verts (23 suites / 105 tests à ce jour).
-6. `api_hopital` non modifié ; toute évolution backend documentée et négociée séparément.
+6. `api_hopital` : évolution AUTORISÉE par le propriétaire depuis la phase 4 (additive, committée et poussée après chaque amélioration — B1 = ids créés, recherche q, décrément stock ; B2 = migration SQL RDC à venir) ; toute évolution reste documentée (§Gaps → résolus).
 
 ## Gaps backend (nécessaires aux règles RDC — hors périmètre actuel)
 
