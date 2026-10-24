@@ -193,14 +193,64 @@ Remplace : `pages/consultation/*`, `pages/ordonnance/*`. Branchement : `POST /co
 4. [x] Référentiels réels TOUT VISIBLE : type de consultation (prix USD) + médecin (GET /api/docteur) — hors ligne : dernier cache SW, saisie possible, envoi en ErreurAttente explicite (médecin JAMAIS deviné).
 5. [x] **Backend B1 (autorisé, commit api_hopital 2b9da37)** : tous les POST renvoient l'id créé (style callback — le package `mysql` perdait les insertId) ; `GET /api/patient?q=` (recherche serveur nom/prénom/téléphone) ; `POST /api/pharma/stock` (ajustement atomique, jamais négatif) ; correction injection SQL `getConsultOne`. Frontend : raccourci « id renvoyé → cache direct » pour patients/factures (réconciliation = secours antérieur à B1).
 
-## Phase 5 — Pharmacie & laboratoire
+## Phase 5 — Pharmacie & laboratoire ✅ FAIT (pharmacie complète)
 
-Remplace : `pages/medicament/*`, `pages/labo/*`. Branchement : `GET /pharma`, prescriptions labo existantes.
+Remplace : `pages/medicament/*` (fait). Le labo (prescriptions, résultats,
+transmission) glisse en phase 6 avec l'hospitalisation — même paquet de
+décisions (actes liés aux consultations réelles).
 
-1. File d'attente ordonnances réelle (jointures `ordonnance`/`patient`/`medicament`) ; délivrance = décrément stock via une mutation idempotente.
-2. Alertes seuils : seuils configurables côté frontend (`localStorage` établissement) tant que la colonne `seuil` n'existe pas ; alternative de substitution idem phase 4.
-3. Vente directe encaissée via la caisse (facture type « Vente directe »).
-4. Labo : résultat de prescription + transmission, badges statut (réutilise DataTable).
+### Livré (commits B3 `57217cc` backend + phase 5 frontend)
+
+1. ✅ **Délivrance branchée** : chaque délivrance trace des SORTIES de
+   stock dans l'outbox (cible api) → rejeu `POST /api/pharma/stock`
+   ATOMIQUE par ligne (`{ id, quantite: -n }`, GREATEST(0,…) côté SQL),
+   id médicament résolu (numérique → cache `map_medic` → réconciliation
+   par nom), clé d'idempotence dérivée `<clé>:stock:<i>` : le middleware
+   B2 rejoue la réponse stockée — jamais de double décrément après
+   coupure réseau.
+2. ✅ **File d'attente serveur inter-postes** : backend B3 a corrigé
+   `GET /api/ordonnance` (le GROUP BY hérité effondrait N lignes en 1) —
+   désormais une ligne par médicament avec `id_ordonnance`,
+   `medicament_id`, `id_patient`, `prenom`, `telephone`, ORDER BY DESC
+   LIMIT 200, colonnes héritées conservées. L'écran Pharmacie affiche
+   « Ordonnances d'autres postes » (groupées par consultation, dédup des
+   importations), bouton **Prendre en charge** → devient délivrable
+   localement (`SRV-<idConsultation>`) — la sortie physique de stock
+   s'enregistre, SANS recréation (l'ordonnance existe déjà côté serveur).
+3. ✅ **Vente directe = carnet de ventes** (pratique réelle HGR) : deux
+   traces api — sorties de stock (idem délivrance) + `POST
+   /api/pharma/vente` (table `vente_pharma`, migration 001 §8) portant
+   référence locale `VTE-ANNÉE-HHMMSS`, client nommé ou anonyme, lignes
+   JSON, total USD + taux FC (audit bidevise). La caisse centrale
+   n'intervient que pour les ventes liées à un dossier (ordonnance →
+   facture) — PAS de facture à patient fictif.
+4. ✅ **CRUD mutuelles ouvert (B3)** : `GET/POST /api/mutuelle`,
+   `GET/POST /api/patient/mutuelle` (affectation UPSERT sur clé unique
+   patient+mutuelle, n° adhérent), 501 tant que la migration n'est pas
+   appliquée. Frontend : datalist des mutuelles actives dans l'écran
+   Patients (saisie libre jamais bloquante — 200+ organismes),
+   affectation tracée `affecter_mutuelle` → résolution patient (chaîne
+   standard) + mutuelle par nom → POST upsert.
+5. ✅ **Triage branché** : `creer_triage` passe en cible api
+   (`POST /api/triage`, endpoint B2) avec payload snake_case ; urgence
+   vitale = `autorise_par` + `motif_autorisation` obligatoires (contrôle
+   aussi côté contrôleur). 501 = échec immédiat explicite via
+   **ErreurDefinitive** (nouvelle classe outbox : rejet identifié sans
+   consommer les 10 essais — la trace reste visible et imprimée).
+6. Alertes seuils : conservées telles quelles (seuil paramétrable côté
+   établissement ; colonne `seuil` créée par B2, hydration à venir quand
+   les données seront renseignées).
+
+### Critères d'acceptation (vérifiés)
+
+- Délivrance hors ligne : stock local décrémenté instantanément, badge
+  sync visible, rejeu complet au retour réseau (223 tests verts dont
+  sorties stock, carnet VTE, mutuelle, triage, 501 → echec immédiat).
+- Un rejeu après coupure ne décrémente JAMAIS deux fois (idempotence
+  dérivée par ligne, testé).
+- Vente directe anonyme acceptée (client_nom null côté serveur).
+- `tsc --noEmit` 0 erreur, build production vert (SW : NetworkFirst 8 s,
+  rdc-api-v1, Background Sync, skipWaiting vérifiés).
 
 ## Phase 6 — Hospitalisation, urgences, RDV simplifiés
 
@@ -225,7 +275,7 @@ Remplace : `pages/admission/*`, `pages/traitement/*`, `pages/rdv/*`.
 3. Ant Design reste l'**unique** lib UI (aucune lib concurrente) ; le design system maison l'habille via tokens.
 4. Redux limité à auth/notifications ; server state → React Query.
 5. Chaque commit = 1 module cohérent + tests verts (23 suites / 105 tests à ce jour).
-6. `api_hopital` : évolution AUTORISÉE par le propriétaire depuis la phase 4 (additive, committée et poussée après chaque amélioration — B1 = ids créés, recherche q, décrément stock ; B2 = migration SQL RDC à venir) ; toute évolution reste documentée (§Gaps → résolus).
+6. `api_hopital` : évolution AUTORISÉE par le propriétaire depuis la phase 4 (additive, committée et poussée après chaque amélioration — B1 = ids créés, recherche q, décrément stock ; B2 = migration SQL RDC + persistance conditionnelle + idempotence + triage ; B3 = file ordonnances par ligne, CRUD mutuelles, carnet ventes pharma) ; toute évolution reste documentée (§Gaps → résolus).
 
 ## Gaps backend (nécessaires aux règles RDC)
 
@@ -236,7 +286,7 @@ Remplace : `pages/admission/*`, `pages/traitement/*`, `pages/rdv/*`.
 > | Règle métier | Statut |
 > |---|---|
 > | Bidevise auditable (`taux_fc_usd` sur `paiements`) | ✅ B1 (ids) + B2 (migration) |
-> | Mutuelles (tables `mutuelle` + `patient_mutuelle`) | ✅ B2 (CRUD à ouvrir phase 5/6) |
+> | Mutuelles (tables `mutuelle` + `patient_mutuelle`) | ✅ B2 (tables) + B3 (CRUD `GET/POST /api/mutuelle`, affectation UPSERT, datalist Patients) |
 > | Exonération / urgence vitale (`mode`, `motif`, `autorise_par` sur `factures`) | ✅ B2 — persistés automatiquement dès la migration appliquée |
 > | Triage 4 niveaux (table `triage`) | ✅ B2 (endpoint `POST /api/triage`, 501 tant que la migration n'est pas passée) |
 > | Alternatives thérapeutiques (`classe_therepeutique` + `seuil` sur `medicament`) | ✅ B2 (colonnes créées) |
@@ -244,7 +294,9 @@ Remplace : `pages/admission/*`, `pages/traitement/*`, `pages/rdv/*`.
 > | Recherche serveur patients (param `q`) | ✅ B1 |
 > | Dédupe des rejeux (`X-Idempotence-Key`) | ✅ B2 (middleware, réponse stockée rejouée) |
 > | Ids créés renvoyés par les POST | ✅ B1 |
-> | Décrément de stock (`POST /api/pharma/stock`) | ✅ B1 |
+> | Décrément de stock (`POST /api/pharma/stock`) | ✅ B1 + B3 (consommé par la délivrance et la vente directe frontend) |
+> | File d'ordonnances pharmacie (une ligne/médicament, ids) | ✅ B3 (GROUP BY hérité supprimé) |
+> | Carnet de ventes directes (`vente_pharma` + `POST/GET /api/pharma/vente`) | ✅ B3 (migration 001 §8) |
 >
 > **Application de la migration** (à faire sur la base de production) :
 > `mysql -u <USER> -p <BASE> < migrations/001_rdc_metier.sql` —

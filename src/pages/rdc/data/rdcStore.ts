@@ -23,6 +23,8 @@ import {
   construirePayloadPaiement,
   type LigneFacturable,
 } from '../../../services/facturationApi';
+import type { LigneOrdonnanceServeur } from '../../../services/pharmacieApi';
+import { getTaux } from './money';
 
 const STORAGE_KEY = 'rdc.store.v1';
 const SCHEMA_VERSION = '1';
@@ -194,6 +196,25 @@ export function updatePatient(id: string, patch: Partial<Omit<Patient, 'id'>>): 
   });
   // Gap backend : pas d'endpoint de mise à jour patient → trace locale.
   tracer('maj_patient', 'local', null, { id, patch });
+  // Phase 5 (B3) : la prise en charge mutuelle a DÉSORMAIS un endpoint
+  // réel (POST /api/patient/mutuelle, upsert n° adhérent) — l'id
+  // patient (numérique ou réconciliation identité au rejeu) et l'id
+  // mutuelle (réconciliation par nom sur GET /api/mutuelle) sont
+  // résolus par l'envoi métier.
+  if (patch.mutuelle !== undefined) {
+    const patient = state.patients.find((p) => p.id === id);
+    tracer('affecter_mutuelle', 'api', '/api/patient/mutuelle', {
+      dossier_patient: id,
+      patient_id: idPatientServeur(patient),
+      patient_identite: patient
+        ? { nom: patient.nom, prenom: patient.prenom, telephone: patient.telephone }
+        : null,
+      mutuelle_nom: patch.mutuelle.organisme,
+      mutuelle_id: null,
+      taux_couverture: patch.mutuelle.couverturePct,
+      numero_adherent: patch.mutuelle.numeroAdherent,
+    }, `affecter_mutuelle:${id}:${patch.mutuelle.organisme}:${patch.mutuelle.numeroAdherent}`);
+  }
 }
 
 /**
@@ -268,9 +289,29 @@ export function addTriage(t: Omit<Triage, 'id'>): Triage {
     id: `TRI-${new Date().getFullYear()}-${String(state.triages.length + 1).padStart(4, '0')}`,
   };
   setState({ triages: [triage, ...state.triages] });
-  // Gap backend (table triage) : trace locale — imprimée sur la fiche
-  // urgence, jamais perdue. Rejeu dès que le backend expose l'endpoint.
-  tracer('creer_triage', 'local', null, triage, `creer_triage:${triage.id}`);
+  // Phase 5 (endpoint B2 déployé) : POST /api/triage réel — le payload
+  // structuré porte l'id patient (numérique ou réconciliation identité
+  // au rejeu) et les champs snake_case attendus par le contrôleur.
+  // 501 (migration non appliquée) = échec immédiat explicite, trace
+  // conservée et imprimée — zéro perte (voir offline/envoiMetier).
+  const patientTriage = state.patients.find((p) => p.id === triage.patientId);
+  tracer('creer_triage', 'api', '/api/triage', {
+    triage_locale: triage.id,
+    patient_ref: triage.patientId,
+    patient_id: idPatientServeur(patientTriage),
+    dossier_patient: triage.patientId,
+    patient_identite: patientTriage
+      ? { nom: patientTriage.nom, prenom: patientTriage.prenom, telephone: patientTriage.telephone }
+      : null,
+    niveau: triage.niveau,
+    motif: triage.motif,
+    orientation: triage.orientation,
+    urgence_vitale: triage.urgenceVitale,
+    autorise_par: triage.autorisePar ?? '',
+    motif_autorisation: triage.motifAutorisation ?? '',
+    montant_du_usd: triage.montantDuUsd,
+    date_triage: triage.dateIso.slice(0, 19).replace('T', ' '),
+  }, `creer_triage:${triage.id}`);
   return triage;
 }
 
@@ -399,6 +440,14 @@ function idPatientServeur(patient: Patient | undefined): number | null {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
+/** Id numérique du médicament (stock hydraté depuis GET /api/pharma) —
+ *  null pour un médicament du seed local (résolution par nom au rejeu). */
+function idMedicamentServeur(medicament: Medicament): number | null {
+  if (!/^\d+$/.test(medicament.id)) return null;
+  const n = Number(medicament.id);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 /**
  * Statut de stock d'un médicament :
  *  - 'rupture'  : stock 0 (rouge)
@@ -441,6 +490,11 @@ export interface ResultatDelivrance {
  * Délivrance d'une ordonnance : décrémente le stock et passe le
  * statut à "délivrée". Si une ligne est en rupture, NE RIEN
  * décrémenter et renvoyer les alternatives (brief RDC 3.5).
+ *
+ * Phase 5 (B3) : chaque sortie de stock est tracée dans l'outbox
+ * (cible api) — le rejeu envoie un POST /api/pharma/stock ATOMIQUE
+ * par ligne (id résolu, clé d'idempotence dérivée : jamais de double
+ * décrément après une coupure réseau).
  */
 export function delivrerOrdonnance(
   ordonnanceId: string,
@@ -464,10 +518,18 @@ export function delivrerOrdonnance(
   if (ruptures.length > 0) return { ok: false, ruptures };
 
   const stocks = new Map(state.medicaments.map((m) => [m.id, m]));
+  const sorties: Array<{ medicament_id: number | null; nom_medicament: string; quantite: number }> = [];
   for (const ligne of ordonnance.lignes) {
     const medId = substitutions[ligne.medicamentId] ?? ligne.medicamentId;
     const med = stocks.get(medId);
-    if (med) stocks.set(medId, { ...med, stock: med.stock - ligne.quantite });
+    if (med) {
+      stocks.set(medId, { ...med, stock: med.stock - ligne.quantite });
+      sorties.push({
+        medicament_id: idMedicamentServeur(med),
+        nom_medicament: med.nom,
+        quantite: ligne.quantite,
+      });
+    }
   }
 
   setState({
@@ -482,9 +544,12 @@ export function delivrerOrdonnance(
         : o,
     ),
   });
-  // Gap backend (décrément de stock) : trace locale + substitutions
-  // appliquées (audit pharmacie).
-  tracer('delivrer_ordonnance', 'local', null, { ordonnanceId, substitutions }, `delivrer_ordonnance:${ordonnanceId}`);
+  // Phase 5 : sorties de stock → POST /api/pharma/stock au rejeu
+  // (endpoint B3, ajustement atomique GREATEST(0,…)).
+  tracer('delivrer_ordonnance', 'api', '/api/pharma/stock', {
+    ordonnance_locale: ordonnanceId,
+    sorties,
+  }, `delivrer_ordonnance:${ordonnanceId}`);
   return { ok: true, ruptures: [] };
 }
 
@@ -501,7 +566,10 @@ export function substituerLigne(ordonnanceId: string, medicamentId: string, nouv
 }
 
 /** Vente directe pharmacie (patient externe sans consultation). */
-export function vendreDirecte(lignes: Array<{ medicamentId: string; quantite: number }>): ResultatDelivrance {
+export function vendreDirecte(
+  lignes: Array<{ medicamentId: string; quantite: number }>,
+  clientNom = '',
+): ResultatDelivrance & { referenceVente: string | null } {
   const ruptures: ResultatDelivrance['ruptures'] = [];
   for (const l of lignes) {
     const med = state.medicaments.find((m) => m.id === l.medicamentId);
@@ -509,17 +577,109 @@ export function vendreDirecte(lignes: Array<{ medicamentId: string; quantite: nu
       ruptures.push({ medicamentId: l.medicamentId, nom: med?.nom ?? '?', alternative: med ? trouverAlternative(med.id) : null });
     }
   }
-  if (ruptures.length > 0) return { ok: false, ruptures };
+  if (ruptures.length > 0) return { ok: false, ruptures, referenceVente: null };
 
   const stocks = new Map(state.medicaments.map((m) => [m.id, m]));
+  const sorties: Array<{ medicament_id: number | null; nom_medicament: string; quantite: number }> = [];
+  const lignesVente: Array<{ medicament_id: number | null; nom: string; quantite: number; prix_usd: number }> = [];
+  let totalUsd = 0;
   for (const l of lignes) {
     const med = stocks.get(l.medicamentId);
-    if (med) stocks.set(l.medicamentId, { ...med, stock: med.stock - l.quantite });
+    if (med) {
+      stocks.set(l.medicamentId, { ...med, stock: med.stock - l.quantite });
+      const idNum = idMedicamentServeur(med);
+      sorties.push({ medicament_id: idNum, nom_medicament: med.nom, quantite: l.quantite });
+      lignesVente.push({ medicament_id: idNum, nom: med.nom, quantite: l.quantite, prix_usd: med.prixUsd });
+      totalUsd += med.prixUsd * l.quantite;
+    }
   }
   setState({ medicaments: state.medicaments.map((m) => stocks.get(m.id) ?? m) });
-  // Gap backend (vente directe sans facture) : trace locale.
-  tracer('vente_directe', 'local', null, lignes);
-  return { ok: true, ruptures: [] };
+
+  // Phase 5 (B3) — deux traces API, le carnet remplace la facture :
+  //  1. sorties de stock (POST /api/pharma/stock, ajustement atomique) ;
+  //  2. carnet de ventes directes (POST /api/pharma/vente, table
+  //     vente_pharma) — vente au comptoir SANS dossier patient :
+  //     pratique réelle des HGR, la caisse centrale n'intervient que
+  //     pour les ventes liées à un dossier (ordonnance → facture).
+  //  Référence VTE-ANNÉE-HHMMSS : unique, imprimable, sans compteur
+  //  d'état (le store reste compatible avec les sessions existantes).
+  const maintenant = new Date();
+  const heure = `${String(maintenant.getHours()).padStart(2, '0')}${String(maintenant.getMinutes()).padStart(2, '0')}${String(maintenant.getSeconds()).padStart(2, '0')}`;
+  const referenceVente = `VTE-${maintenant.getFullYear()}-${heure}`;
+  const dateVente = maintenant.toISOString().slice(0, 19).replace('T', ' ');
+  tracer('vente_directe', 'api', '/api/pharma/stock', {
+    vente_locale: referenceVente,
+    sorties,
+  }, `vente_directe:${referenceVente}`);
+  tracer('creer_vente', 'api', '/api/pharma/vente', {
+    facture_locale: referenceVente,
+    client_nom: clientNom.trim(),
+    lignes: lignesVente,
+    montant_total_usd: Math.round(totalUsd * 100) / 100,
+    taux_fc_usd: getTaux(),
+    date_vente: dateVente,
+  }, `creer_vente:${referenceVente}`);
+  return { ok: true, ruptures: [], referenceVente };
+}
+
+/**
+ * IMPORT d'une ordonnance venant du SERVEUR (file d'attente inter-postes,
+ * GET /api/ordonnance corrigé B3) : regroupée par consultation, elle
+ * devient délivrable au comptoir comme une ordonnance locale — la
+ * délivrance décrémentera le stock via POST /api/pharma/stock avec les
+ * ids numériques serveur (aucune trace de création : l'ordonnance
+ * EXISTE déjà côté serveur, seule la sortie physique est à enregistrer).
+ *
+ * @returns l'ordonnance locale créée, null si déjà importée (dédup par
+ *          id SRV-<idConsultation>) ou aucune ligne exploitable.
+ */
+export function importerOrdonnanceServeur(entree: {
+  idConsultation: number;
+  lignes: LigneOrdonnanceServeur[];
+  patientNom: string;
+}): Ordonnance | null {
+  const idLocal = `SRV-${entree.idConsultation}`;
+  if (state.ordonnances.some((o) => o.id === idLocal)) return null;
+
+  const lignes: LigneOrdonnance[] = [];
+  for (const l of entree.lignes) {
+    if (l.idConsultation !== entree.idConsultation) continue;
+    // Id serveur (numérique) prioritaire — la délivrance en aura besoin
+    // pour POST /api/pharma/stock ; sinon résolution par nom dans le
+    // stock local hydraté.
+    const med =
+      (l.idMedicament !== null
+        ? state.medicaments.find((m) => m.id === String(l.idMedicament))
+        : undefined) ??
+      state.medicaments.find((m) => normaliser(m.nom) === normaliser(l.nomMedicament));
+    lignes.push({
+      medicamentId: med ? med.id : `INCONNU-${l.idOrdonnance}`,
+      posologie: '—',
+      dureeJours: 0,
+      quantite: l.quantite > 0 ? l.quantite : 1,
+    });
+  }
+  if (lignes.length === 0) return null;
+
+  const premiere = entree.lignes[0];
+  const dateIso = premiere
+    ? new Date(premiere.dateOrdre.replace(' ', 'T') + 'Z').toISOString()
+    : new Date().toISOString();
+  const idPatientServeurLigne = premiere?.idPatient ?? null;
+  const ordonnance: Ordonnance = {
+    id: idLocal,
+    // Le patient n'existe pas forcément dans le store local (créé sur
+    // un autre poste) : le nom serveur s'affiche directement.
+    patientId: idPatientServeurLigne !== null ? String(idPatientServeurLigne) : idLocal,
+    patientNomServeur: entree.patientNom,
+    medecin: premiere?.nomConsultation || 'Consultation serveur',
+    service: '—',
+    dateIso,
+    lignes,
+    statut: 'en_attente',
+  };
+  setState({ ordonnances: [ordonnance, ...state.ordonnances] });
+  return ordonnance;
 }
 
 /** Réinitialisation (démo / formation). */

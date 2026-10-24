@@ -24,6 +24,9 @@ import {
   registerMouvement,
   resetRdcState,
   addOrdonnance,
+  delivrerOrdonnance,
+  vendreDirecte,
+  importerOrdonnanceServeur,
 } from './rdcStore';
 
 describe('rdcStore — facturation (phase 3)', () => {
@@ -280,5 +283,165 @@ describe('rdcStore — consultation & ordonnances (phase 4)', () => {
       {}) as Record<string, unknown>;
     const ligne = (payload['lignes'] as Array<Record<string, unknown>>)[0] as Record<string, unknown>;
     expect(ligne['medicament_id']).toBe(12); // directement réutilisable par le rejeu
+  });
+});
+
+// ============================================================
+// PHASE 5 — délivrance branchée, vente directe carnet, import serveur
+// ============================================================
+
+describe('rdcStore — pharmacie branchée (phase 5)', () => {
+  beforeEach(async () => {
+    await reinitialiserOutbox();
+    resetRdcState();
+    localStorage.clear();
+    resetRdcState();
+  });
+
+  async function viderFile(): Promise<void> {
+    for (let i = 0; i < 5; i += 1) {
+      await new Promise((resoudre) => setTimeout(resoudre, 10));
+    }
+  }
+
+  test('delivrerOrdonnance : trace api avec sorties calibrées POST /api/pharma/stock', async () => {
+    // Ordonnance FRAÎCHE sur un médicament à gros stock (le seed contient
+    // volontairement des ordonnances déjà bloquées par des ruptures).
+    addOrdonnance({
+      patientId: 'IL-2026-0001',
+      medecin: 'Dr Kalala',
+      service: 'Médecine interne',
+      dateIso: '2026-10-24T09:00:00.000Z',
+      lignes: [{ medicamentId: 'med-par', posologie: '1 cp x 3/jour', dureeJours: 5, quantite: 15 }],
+      statut: 'en_attente',
+    });
+    const etat = lireEtatRdc();
+    const ordonnance = etat.ordonnances.find((o) => o.statut === 'en_attente' && o.lignes.some((l) => l.medicamentId === 'med-par'));
+    expect(ordonnance).toBeDefined();
+
+    const res = delivrerOrdonnance(ordonnance!.id);
+    expect(res.ok).toBe(true);
+
+    await viderFile();
+    const entrees = await db!.outbox.toArray();
+    const trace = entrees.find((e) => e.type === 'delivrer_ordonnance');
+    expect(trace).toBeDefined();
+    expect(trace?.cible).toBe('api');
+    expect(trace?.endpoint).toBe('/api/pharma/stock');
+    const payload = trace?.payload as { ordonnance_locale: string; sorties: Array<{ medicament_id: number | null; nom_medicament: string; quantite: number }> };
+    expect(payload.ordonnance_locale).toBe(ordonnance!.id);
+    expect(payload.sorties).toHaveLength(1);
+    expect(payload.sorties[0]?.quantite).toBe(15);
+    expect(payload.sorties[0]?.nom_medicament).toBe('Paracétamol 500 mg');
+  });
+
+  test('delivrerOrdonnance : rupture → RIEN décrémenté, RIEN tracé', async () => {
+    const etat = lireEtatRdc();
+    const enRupture = etat.medicaments.find((m) => m.stock === 0);
+    expect(enRupture).toBeDefined();
+    // Ordonnance fraîche substituée FORCEMENT vers un médicament en
+    // rupture (Artéméther-Luméfantrine, stock 0 dans le seed).
+    const creee = addOrdonnance({
+      patientId: 'IL-2026-0001',
+      medecin: 'Dr Kalala',
+      service: 'Médecine interne',
+      dateIso: '2026-10-24T09:10:00.000Z',
+      lignes: [{ medicamentId: 'med-par', posologie: '1 cp x 2/jour', dureeJours: 3, quantite: 6 }],
+      statut: 'en_attente',
+    });
+    const stockAvant = lireEtatRdc().medicaments.map((m) => m.stock);
+    const res = delivrerOrdonnance(creee.id, { 'med-par': enRupture!.id });
+    expect(res.ok).toBe(false);
+    expect(res.ruptures.map((r) => r.medicamentId)).toContain(enRupture!.id);
+    expect(lireEtatRdc().medicaments.map((m) => m.stock)).toEqual(stockAvant);
+
+    await viderFile();
+    const entrees = await db!.outbox.toArray();
+    expect(entrees.find((e) => e.type === 'delivrer_ordonnance')).toBeUndefined();
+  });
+
+  test('vendreDirecte : décrément stock + 2 traces api (stock + carnet VTE) + référence retournée', async () => {
+    const etat = lireEtatRdc();
+    const med = etat.medicaments.find((m) => m.stock >= 5);
+    expect(med).toBeDefined();
+
+    const res = vendreDirecte([{ medicamentId: med!.id, quantite: 2 }], 'Maman Bakala');
+    expect(res.ok).toBe(true);
+    expect(res.referenceVente).toMatch(/^VTE-\d{4}-\d{6}$/);
+    expect(lireEtatRdc().medicaments.find((m) => m.id === med!.id)?.stock).toBe(med!.stock - 2);
+
+    await viderFile();
+    const entrees = await db!.outbox.toArray();
+    const sorties = entrees.find((e) => e.type === 'vente_directe');
+    const carnet = entrees.find((e) => e.type === 'creer_vente');
+    expect(sorties?.cible).toBe('api');
+    expect(sorties?.endpoint).toBe('/api/pharma/stock');
+    expect(carnet?.cible).toBe('api');
+    expect(carnet?.endpoint).toBe('/api/pharma/vente');
+    const payloadCarnet = carnet?.payload as Record<string, unknown>;
+    expect(payloadCarnet['facture_locale']).toBe(res.referenceVente);
+    expect(payloadCarnet['client_nom']).toBe('Maman Bakala');
+    expect(payloadCarnet['taux_fc_usd']).toBe(2850);
+    const lignes = payloadCarnet['lignes'] as Array<{ nom: string; quantite: number; prix_usd: number }>;
+    expect(lignes).toHaveLength(1);
+    expect(lignes[0]?.quantite).toBe(2);
+  });
+
+  test('vendreDirecte sans client : client_nom vide accepté (vente anonyme)', async () => {
+    const etat = lireEtatRdc();
+    const med = etat.medicaments.find((m) => m.stock >= 2);
+    expect(med).toBeDefined();
+    const res = vendreDirecte([{ medicamentId: med!.id, quantite: 1 }]);
+    expect(res.ok).toBe(true);
+    await viderFile();
+    const entrees = await db!.outbox.toArray();
+    const carnet = entrees.find((e) => e.type === 'creer_vente');
+    const payload = carnet?.payload as Record<string, unknown>;
+    expect(payload['client_nom']).toBe('');
+  });
+
+  test('importerOrdonnanceServeur : import délivrable, dédup par consultation, nom serveur affiché', () => {
+    const lignesServeur = [
+      {
+        idOrdonnance: 101,
+        idConsultation: 55,
+        idPatient: 9,
+        idMedicament: null,
+        nomMedicament: 'Paracétamol 500 mg',
+        quantite: 6,
+        dateOrdre: '2026-10-24 08:30:00',
+        nomPatient: 'KABILA',
+        prenomPatient: 'Joseph',
+        nomConsultation: 'Consultation générale',
+      },
+      {
+        idOrdonnance: 102,
+        idConsultation: 55,
+        idPatient: 9,
+        idMedicament: null,
+        nomMedicament: 'Introuvable au comptoir',
+        quantite: 1,
+        dateOrdre: '2026-10-24 08:30:00',
+        nomPatient: 'KABILA',
+        prenomPatient: 'Joseph',
+        nomConsultation: 'Consultation générale',
+      },
+    ];
+
+    const importee = importerOrdonnanceServeur({ idConsultation: 55, lignes: lignesServeur, patientNom: 'KABILA Joseph' });
+    expect(importee).not.toBeNull();
+    expect(importee!.id).toBe('SRV-55');
+    expect(importee!.patientNomServeur).toBe('KABILA Joseph');
+    expect(importee!.patientId).toBe('9');
+    expect(importee!.statut).toBe('en_attente');
+    expect(importee!.lignes).toHaveLength(2);
+    // Médicament résolu par nom dans le stock local (seed de démo),
+    // introuvable → marqueur INCONNU (jamais un crash).
+    expect(importee!.lignes[0]?.medicamentId).toBe('med-par');
+    expect(importee!.lignes[1]?.medicamentId).toContain('INCONNU');
+
+    // Dédup : une seconde importation de la même consultation → null.
+    const doublon = importerOrdonnanceServeur({ idConsultation: 55, lignes: lignesServeur, patientNom: 'KABILA Joseph' });
+    expect(doublon).toBeNull();
   });
 });

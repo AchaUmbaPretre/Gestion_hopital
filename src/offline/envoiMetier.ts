@@ -34,6 +34,31 @@
  *    Tout prérequis manquant → ErreurAttente (retour en file SANS
  *    consommer d'essai) : jamais d'ordonnance partielle.
  *
+ *  - `delivrer_ordonnance` / `vente_directe` (phase 5, B3) : chaque
+ *    sortie de stock est un POST /api/pharma/stock ATOMIQUE
+ *    (quantite négative). L'id serveur du médicament est résolu
+ *    (numérique, cache map_medic, réconciliation par nom) — clé
+ *    d'idempotence dérivée par ligne : le middleware B2 rejoue la
+ *    réponse stockée, un rejeu après coupure ne décrémente JAMAIS
+ *    deux fois le stock.
+ *
+ *  - `creer_vente` (phase 5, B3) : carnet de ventes directes
+ *    POST /api/pharma/vente — vente au comptoir SANS dossier patient
+ *    (table vente_pharma, le carnet remplace la facture).
+ *
+ *  - `affecter_mutuelle` (phase 5, B3) : résolution du patient
+ *    (réutilisation de la chaîne standard) PUIS de l'id mutuelle par
+ *    nom (GET /api/mutuelle), POST /api/patient/mutuelle (upsert).
+ *
+ *  - `creer_triage` (phase 5, endpoint B2) : résolution du patient
+ *    puis POST /api/triage avec le payload snake_case — l'urgence
+ *    vitale exige autorise_par + motif (arrêté n°1250/2025).
+ *
+ * 501 = migration 001_rdc_metier.sql non appliquée côté serveur →
+ * ErreurDefinitive (échec immédiat avec message explicite, la trace
+ * reste en file et imprimée — rejouer 10 fois ne créera jamais la
+ * table).
+ *
  * Les réconciliations lisent le réseau en GET : le client axios global
  * est durci (timeout 8 s, retry ×3 sur GET — services/resilience.ts).
  */
@@ -41,7 +66,15 @@
 import axios from 'axios';
 import config from '../config';
 import { db, type EntreeOutbox } from './db';
-import { ErreurAttente } from './outbox';
+import { ErreurAttente, ErreurDefinitive, statutHttpErreur } from './outbox';
+import {
+  construirePayloadAffectationMutuelle,
+  construirePayloadSortieStock,
+  construirePayloadVenteDirecte,
+  reconcilierIdMutuelleParNom,
+  type LigneVenteDirecte,
+} from '../services/pharmacieApi';
+import { construirePayloadTriage } from '../services/triageApi';
 import {
   reconcilierIdFacture,
   reconcilierIdPatientServeur,
@@ -70,13 +103,26 @@ export async function envoiAxios(
   payload: unknown,
   cleIdempotence: string,
 ): Promise<unknown> {
-  const reponse = await axios.request({
-    method: methode,
-    url: `${DOMAINE}${endpoint}`,
-    data: payload,
-    headers: { 'X-Idempotence-Key': cleIdempotence },
-  });
-  return reponse?.data;
+  try {
+    const reponse = await axios.request({
+      method: methode,
+      url: `${DOMAINE}${endpoint}`,
+      data: payload,
+      headers: { 'X-Idempotence-Key': cleIdempotence },
+    });
+    return reponse?.data;
+  } catch (erreur: unknown) {
+    // 501 : endpoint RDC présent mais migration 001 non appliquée
+    // (tables triage/mutuelle/vente_pharma absentes). Rejouer 10 fois
+    // ne créera jamais la table → échec immédiat et explicite, la
+    // trace reste en file (visible + imprimable).
+    if (statutHttpErreur(erreur) === 501) {
+      throw new ErreurDefinitive(
+        'migration 001_rdc_metier.sql non appliquée côté serveur — trace conservée localement (lire docs/MIGRATION_PLAN.md §Gaps)',
+      );
+    }
+    throw erreur;
+  }
 }
 
 // ------------------------------------------------------------
@@ -488,13 +534,179 @@ async function envoyerOrdonnance(entree: EntreeOutbox): Promise<void> {
 }
 
 // ------------------------------------------------------------
+// delivrer_ordonnance / vente_directe (phase 5 : sorties de stock)
+// ------------------------------------------------------------
+
+/**
+ * Rejeu d'une sortie de stock : PAR ligne, id médicament résolu
+ * (numérique, cache map_medic, réconciliation par nom) puis
+ * POST /api/pharma/stock avec quantité NÉGATIVE (ajustement atomique
+ * GREATEST(0,…) côté MySQL). La clé d'idempotence dérivée
+ * `<clé>:stock:<i>` fait rejouer la réponse stockée par le middleware
+ * B2 : un rejeu après coupure réseau ne décrémente JAMAIS deux fois.
+ */
+async function envoyerSortieStock(entree: EntreeOutbox): Promise<void> {
+  const brut = estObjet(entree.payload) ? entree.payload : {};
+  const sorties = lireLignesPayload({ lignes: brut['sorties'] });
+  if (sorties.length === 0) {
+    throw new ErreurAttente('sortie de stock sans ligne (payload prototype antérieur ?)');
+  }
+  for (let i = 0; i < sorties.length; i++) {
+    const ligne = sorties[i] as LigneOrdonnancePayload;
+    const idMedicament = await resoudreMedicamentId(ligne);
+    if (idMedicament === null) {
+      throw new ErreurAttente(
+        `médicament « ${ligne.nom_medicament || 'sans nom'} » introuvable côté serveur (GET /api/pharma)`,
+      );
+    }
+    await envoiAxios(
+      'POST',
+      '/api/pharma/stock',
+      construirePayloadSortieStock({ idMedicament, quantite: ligne.quantite }),
+      `${entree.cleIdempotence}:stock:${i}`,
+    );
+  }
+}
+
+// ------------------------------------------------------------
+// creer_vente (phase 5 : carnet de ventes directes)
+// ------------------------------------------------------------
+
+/** Ligne de vente directe lue défensivement depuis le payload. */
+function lireLignesVente(brut: Record<string, unknown>): LigneVenteDirecte[] {
+  const brutLignes = brut['lignes'];
+  if (!estTableau(brutLignes)) return [];
+  const lignes: LigneVenteDirecte[] = [];
+  for (const l of brutLignes) {
+    if (!estObjet(l)) continue;
+    lignes.push({
+      medicament_id: lireNombre(l['medicament_id']),
+      nom: lireChaine(l['nom']),
+      quantite: lireNombre(l['quantite']) ?? 1,
+      prix_usd: lireNombre(l['prix_usd']) ?? 0,
+    });
+  }
+  return lignes;
+}
+
+/**
+ * Rejeu d'une vente directe : POST /api/pharma/vente — AUCUNE
+ * résolution de patient (vente au comptoir, table vente_pharma sans
+ * FK patient). Le carnet porte la référence locale VTE-…, le client
+ * (nommé ou anonyme), le total USD et le taux FC (audit bidevise).
+ */
+async function envoyerVenteDirecte(entree: EntreeOutbox): Promise<void> {
+  const brut = estObjet(entree.payload) ? entree.payload : {};
+  const lignes = lireLignesVente(brut);
+  if (lignes.length === 0) {
+    throw new ErreurAttente('vente directe sans ligne (payload prototype antérieur ?)');
+  }
+  const reference = lireChaine(brut['facture_locale']);
+  if (reference === '') {
+    throw new ErreurAttente('vente directe sans référence locale (VTE-…)');
+  }
+  await envoiAxios(
+    entree.methode,
+    entree.endpoint ?? '/api/pharma/vente',
+    construirePayloadVenteDirecte({
+      referenceLocale: reference,
+      clientNom: lireChaine(brut['client_nom']),
+      lignes,
+      montantTotalUsd: lireNombre(brut['montant_total_usd']) ?? 0,
+      tauxFcUsd: lireNombre(brut['taux_fc_usd']) ?? 0,
+      dateVente: lireChaine(brut['date_vente']),
+    }),
+    entree.cleIdempotence,
+  );
+}
+
+// ------------------------------------------------------------
+// affecter_mutuelle (phase 5 : prise en charge mutuelle)
+// ------------------------------------------------------------
+
+/**
+ * Rejeu d'une affectation mutuelle : résolution du patient (chaîne
+ * standard : numérique, cache B1, réconciliation identité) puis de
+ * l'id mutuelle (numérique dans le payload, sinon GET /api/mutuelle
+ * par nom normalisé), POST /api/patient/mutuelle (upsert n° adhérent).
+ */
+async function envoyerAffectationMutuelle(entree: EntreeOutbox): Promise<void> {
+  const brut = estObjet(entree.payload) ? entree.payload : {};
+  const identite = identiteDepuis(brut);
+  const patientId = await resoudrePatientId(
+    brut['patient_id'],
+    identite,
+    lireChaine(brut['dossier_patient']),
+  );
+
+  let idMutuelle = lireNombre(brut['mutuelle_id']);
+  if (idMutuelle === null) {
+    const nomMutuelle = lireChaine(brut['mutuelle_nom']);
+    idMutuelle = await reconcilierIdMutuelleParNom(nomMutuelle);
+    if (idMutuelle === null) {
+      throw new ErreurAttente(
+        `mutuelle « ${nomMutuelle || 'sans nom'} » introuvable côté serveur (GET /api/mutuelle) — création manuelle requise`,
+      );
+    }
+  }
+
+  await envoiAxios(
+    entree.methode,
+    entree.endpoint ?? '/api/patient/mutuelle',
+    construirePayloadAffectationMutuelle({
+      patientIdServeur: patientId,
+      idMutuelle,
+      numeroAdherent: lireChaine(brut['numero_adherent']),
+    }),
+    entree.cleIdempotence,
+  );
+}
+
+// ------------------------------------------------------------
+// creer_triage (endpoint B2 : table triage 4 niveaux)
+// ------------------------------------------------------------
+
+/**
+ * Rejeu d'un triage : résolution du patient puis POST /api/triage
+ * (payload snake_case — le contrôleur B2 refuse une urgence vitale
+ * sans autorise_par/motif : le formulaire de l'écran Accueil l'impose
+ * déjà localement).
+ */
+async function envoyerTriage(entree: EntreeOutbox): Promise<void> {
+  const brut = estObjet(entree.payload) ? entree.payload : {};
+  const identite = identiteDepuis(brut);
+  const patientId = await resoudrePatientId(
+    brut['patient_id'],
+    identite,
+    lireChaine(brut['dossier_patient']),
+  );
+  const urgenceVitale = brut['urgence_vitale'] === true;
+  await envoiAxios(
+    entree.methode,
+    entree.endpoint ?? '/api/triage',
+    construirePayloadTriage({
+      patientIdServeur: patientId,
+      niveau: lireChaine(brut['niveau']) || 'vert',
+      motif: lireChaine(brut['motif']),
+      orientation: lireChaine(brut['orientation']),
+      urgenceVitale,
+      autorisePar: lireChaine(brut['autorise_par']),
+      motifAutorisation: lireChaine(brut['motif_autorisation']),
+      montantDuUsd: lireNombre(brut['montant_du_usd']) ?? 0,
+      dateTriage: lireChaine(brut['date_triage']),
+    }),
+    entree.cleIdempotence,
+  );
+}
+
+// ------------------------------------------------------------
 // Dispatch
 // ------------------------------------------------------------
 
 /**
  * Fonction d'envoi injectée dans `synchroniser` : traite spécialement
- * patients, factures, paiements et ordonnances, laisse le reste partir
- * tel quel.
+ * patients, factures, paiements, ordonnances, sorties de stock, ventes
+ * directes, mutuelles et triages ; laisse le reste partir tel quel.
  */
 export async function envoiMetier(entree: EntreeOutbox): Promise<void> {
   switch (entree.type) {
@@ -506,6 +718,15 @@ export async function envoiMetier(entree: EntreeOutbox): Promise<void> {
       return envoyerPaiement(entree);
     case 'creer_ordonnance':
       return envoyerOrdonnance(entree);
+    case 'delivrer_ordonnance':
+    case 'vente_directe':
+      return envoyerSortieStock(entree);
+    case 'creer_vente':
+      return envoyerVenteDirecte(entree);
+    case 'affecter_mutuelle':
+      return envoyerAffectationMutuelle(entree);
+    case 'creer_triage':
+      return envoyerTriage(entree);
     default:
       if (!entree.endpoint) return; // cible 'local' — ne devrait pas arriver ici
       return envoiAxios(entree.methode, entree.endpoint, entree.payload, entree.cleIdempotence).then(

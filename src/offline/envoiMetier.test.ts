@@ -631,3 +631,252 @@ describe('envoiMetier — ids B1 (raccourcis sans réconciliation)', () => {
     expect(String(axiosMock.get.mock.calls[0]?.[0])).toContain('/api/factures');
   });
 });
+
+// ============================================================
+// PHASE 5 — sorties de stock, carnet de ventes, mutuelles, triages
+// ============================================================
+
+describe('envoiMetier — délivrance & vente directe (sorties de stock B3)', () => {
+  beforeEach(async () => {
+    axiosMock.request.mockReset();
+    axiosMock.get.mockReset();
+    await reinitialiserOutbox();
+    await db?.meta.clear();
+  });
+
+  test('delivrer_ordonnance : 1 POST /api/pharma/stock par ligne, quantité NÉGATIVE', async () => {
+    axiosMock.request.mockResolvedValue({ data: { message: 'Stock ajusté', stock: 18 } });
+    await enregistrerMutation({
+      type: 'delivrer_ordonnance',
+      cible: 'api',
+      endpoint: '/api/pharma/stock',
+      payload: {
+        ordonnance_locale: 'ORD-2026-0001',
+        sorties: [
+          { medicament_id: 5, nom_medicament: 'Paracetamol', quantite: 9 },
+          { medicament_id: null, nom_medicament: 'Amodiaquine', quantite: 3 },
+        ],
+      },
+      cleIdempotence: 'delivrer_ordonnance:ORD-2026-0001',
+    });
+    // Réconciliation par nom pour la 2e ligne (id null).
+    axiosMock.get.mockImplementation(async (url: string) => {
+      if (String(url).endsWith('/api/pharma')) {
+        return { data: [{ id: 12, nomMedicament: 'Amodiaquine', montant: 0.5, stock: 40 }] } as never;
+      }
+      throw new Error(`GET inattendu : ${String(url)}`);
+    });
+
+    const resultat = await synchroniser(envoiMetier);
+    expect(resultat.envoyes).toBe(1);
+    expect(axiosMock.request).toHaveBeenCalledTimes(2);
+
+    const appel0 = axiosMock.request.mock.calls[0]?.[0];
+    expect(appel0?.url).toContain('/api/pharma/stock');
+    expect((appel0?.data as Record<string, unknown>)['id']).toBe(5);
+    expect((appel0?.data as Record<string, unknown>)['quantite']).toBe(-9);
+    // Clé d'idempotence dérivée par ligne (anti double-décrément).
+    expect(appel0?.headers?.['X-Idempotence-Key']).toBe('delivrer_ordonnance:ORD-2026-0001:stock:0');
+
+    const appel1 = axiosMock.request.mock.calls[1]?.[0];
+    expect((appel1?.data as Record<string, unknown>)['id']).toBe(12);
+    expect((appel1?.data as Record<string, unknown>)['quantite']).toBe(-3);
+  });
+
+  test('delivrer_ordonnance : médicament introuvable → ErreurAttente (pas de POST partiel incomplet assumé)', async () => {
+    axiosMock.request.mockResolvedValue({ data: { message: 'Stock ajusté', stock: 18 } });
+    axiosMock.get.mockImplementation(async (url: string) => {
+      if (String(url).endsWith('/api/pharma')) return { data: [] } as never;
+      throw new Error(`GET inattendu : ${String(url)}`);
+    });
+    await enregistrerMutation({
+      type: 'delivrer_ordonnance',
+      cible: 'api',
+      endpoint: '/api/pharma/stock',
+      payload: {
+        ordonnance_locale: 'ORD-2026-0002',
+        sorties: [{ medicament_id: null, nom_medicament: 'Mystere', quantite: 1 }],
+      },
+      cleIdempotence: 'delivrer_ordonnance:ORD-2026-0002',
+    });
+    const resultat = await synchroniser(envoiMetier);
+    expect(resultat).toEqual({ envoyes: 0, echecs: 0, attendus: 1 });
+    expect(axiosMock.request).not.toHaveBeenCalled();
+  });
+
+  test('creer_vente : POST /api/pharma/vente SANS résolution de patient', async () => {
+    axiosMock.request.mockResolvedValue({ data: { message: 'Vente enregistrée', id_vente: 3 } });
+    await enregistrerMutation({
+      type: 'creer_vente',
+      cible: 'api',
+      endpoint: '/api/pharma/vente',
+      payload: {
+        facture_locale: 'VTE-2026-101500',
+        client_nom: 'Maman Bakala',
+        lignes: [{ medicament_id: 5, nom: 'Paracetamol', quantite: 2, prix_usd: 0.5 }],
+        montant_total_usd: 1,
+        taux_fc_usd: 2850,
+        date_vente: '2026-10-24 10:15:00',
+      },
+      cleIdempotence: 'creer_vente:VTE-2026-101500',
+    });
+    const resultat = await synchroniser(envoiMetier);
+    expect(resultat.envoyes).toBe(1);
+    expect(axiosMock.get).not.toHaveBeenCalled(); // aucune réconciliation
+    const appel = axiosMock.request.mock.calls[0]?.[0];
+    expect(appel?.url).toContain('/api/pharma/vente');
+    expect((appel?.data as Record<string, unknown>)['facture_locale']).toBe('VTE-2026-101500');
+    expect((appel?.data as Record<string, unknown>)['client_nom']).toBe('Maman Bakala');
+  });
+});
+
+describe('envoiMetier — affecter_mutuelle (B3)', () => {
+  beforeEach(async () => {
+    axiosMock.request.mockReset();
+    axiosMock.get.mockReset();
+    await reinitialiserOutbox();
+    await db?.meta.clear();
+  });
+
+  test('patient local + mutuelle par nom : réconciliation identité + GET /api/mutuelle, POST upsert', async () => {
+    axiosMock.request.mockResolvedValue({ data: { message: 'Affectation mutuelle enregistrée', id_patient_mutuelle: 9 } });
+    axiosMock.get.mockImplementation(async (url: string) => {
+      if (String(url).endsWith('/api/patient')) {
+        return { data: [{ id_patient: 77, nom_patient: 'MBUYI', prenom: 'Grace', tel: '0998887776' }] } as never;
+      }
+      if (String(url).endsWith('/api/mutuelle')) {
+        return {
+          data: [
+            { id_mutuelle: 3, nom_organisme: 'Mutuelle Santé Lubumbashi', taux_couverture: 70 },
+            { id_mutuelle: 4, nom_organisme: 'Autre', taux_couverture: 50 },
+          ],
+        } as never;
+      }
+      throw new Error(`GET inattendu : ${String(url)}`);
+    });
+
+    await enregistrerMutation({
+      type: 'affecter_mutuelle',
+      cible: 'api',
+      endpoint: '/api/patient/mutuelle',
+      payload: {
+        dossier_patient: 'KI-2026-0001',
+        patient_id: null,
+        patient_identite: { nom: 'MBUYI', prenom: 'Grace', telephone: '0998887776' },
+        mutuelle_nom: 'Mutuelle Santé Lubumbashi',
+        mutuelle_id: null,
+        taux_couverture: 70,
+        numero_adherent: 'MSL-4432',
+      },
+      cleIdempotence: 'affecter_mutuelle:KI-2026-0001',
+    });
+    const resultat = await synchroniser(envoiMetier);
+    expect(resultat.envoyes).toBe(1);
+    const appel = axiosMock.request.mock.calls[0]?.[0];
+    expect(appel?.url).toContain('/api/patient/mutuelle');
+    expect((appel?.data as Record<string, unknown>)['patient_id']).toBe(77);
+    expect((appel?.data as Record<string, unknown>)['mutuelle_id']).toBe(3);
+    expect((appel?.data as Record<string, unknown>)['numero_adherent']).toBe('MSL-4432');
+  });
+
+  test('mutuelle inconnue côté serveur → ErreurAttente (pas de fausse affectation)', async () => {
+    axiosMock.get.mockImplementation(async (url: string) => {
+      if (String(url).endsWith('/api/patient')) {
+        return { data: [{ id_patient: 77, nom_patient: 'MBUYI', prenom: 'Grace', tel: '0998887776' }] } as never;
+      }
+      if (String(url).endsWith('/api/mutuelle')) return { data: [] } as never;
+      throw new Error(`GET inattendu : ${String(url)}`);
+    });
+    await enregistrerMutation({
+      type: 'affecter_mutuelle',
+      cible: 'api',
+      endpoint: '/api/patient/mutuelle',
+      payload: {
+        dossier_patient: 'KI-2026-0001',
+        patient_id: 77,
+        patient_identite: null,
+        mutuelle_nom: 'Inconnue',
+        mutuelle_id: null,
+        taux_couverture: 50,
+        numero_adherent: 'X',
+      },
+      cleIdempotence: 'affecter_mutuelle:KI-2026-0002',
+    });
+    const resultat = await synchroniser(envoiMetier);
+    expect(resultat).toEqual({ envoyes: 0, echecs: 0, attendus: 1 });
+    expect(axiosMock.request).not.toHaveBeenCalled();
+  });
+});
+
+describe('envoiMetier — creer_triage (endpoint B2) & 501 migration', () => {
+  beforeEach(async () => {
+    axiosMock.request.mockReset();
+    axiosMock.get.mockReset();
+    await reinitialiserOutbox();
+    await db?.meta.clear();
+  });
+
+  test('triage : payload snake_case, urgence vitale avec autorise_par + motif', async () => {
+    axiosMock.request.mockResolvedValue({ data: { message: 'Triage créé avec succès', id_triage: 6 } });
+    await enregistrerMutation({
+      type: 'creer_triage',
+      cible: 'api',
+      endpoint: '/api/triage',
+      payload: {
+        triage_locale: 'TRI-2026-0001',
+        patient_ref: 'KI-2026-0001',
+        patient_id: 77,
+        dossier_patient: 'KI-2026-0001',
+        patient_identite: null,
+        niveau: 'rouge',
+        motif: 'Paludisme grave',
+        orientation: 'Urgences / Déchocage',
+        urgence_vitale: true,
+        autorise_par: 'Major Salle Urgence',
+        motif_autorisation: 'Arrêté n°1250/2025',
+        montant_du_usd: 12,
+        date_triage: '2026-10-24 08:00:00',
+      },
+      cleIdempotence: 'creer_triage:TRI-2026-0001',
+    });
+    const resultat = await synchroniser(envoiMetier);
+    expect(resultat.envoyes).toBe(1);
+    expect(axiosMock.get).not.toHaveBeenCalled();
+    const appel = axiosMock.request.mock.calls[0]?.[0];
+    expect(appel?.url).toContain('/api/triage');
+    const data = appel?.data as Record<string, unknown>;
+    expect(data['patient_id']).toBe(77);
+    expect(data['niveau']).toBe('rouge');
+    expect(data['urgence_vitale']).toBe(true);
+    expect(data['autorise_par']).toBe('Major Salle Urgence');
+    expect(data['montant_du_usd']).toBe(12);
+  });
+
+  test('501 (migration non appliquée) → echec IMMÉDIAT avec message explicite', async () => {
+    axiosMock.request.mockRejectedValue({
+      response: { status: 501, data: { message: 'Tables mutuelle absentes' } },
+    });
+    await enregistrerMutation({
+      type: 'affecter_mutuelle',
+      cible: 'api',
+      endpoint: '/api/patient/mutuelle',
+      payload: {
+        dossier_patient: 'KI-2026-0001',
+        patient_id: 77,
+        patient_identite: null,
+        mutuelle_nom: 'X',
+        mutuelle_id: 3,
+        taux_couverture: 50,
+        numero_adherent: 'X',
+      },
+      cleIdempotence: 'affecter_mutuelle:KI-2026-0003',
+    });
+    const resultat = await synchroniser(envoiMetier);
+    expect(resultat).toEqual({ envoyes: 0, echecs: 1, attendus: 0 });
+    const entree = await db!.outbox.toArray();
+    expect(entree).toHaveLength(1);
+    expect(entree[0]?.statut).toBe('echec');
+    expect(entree[0]?.erreur).toContain('migration 001');
+    expect(entree[0]?.essais).toBe(1); // un seul essai consommé, pas 10
+  });
+});

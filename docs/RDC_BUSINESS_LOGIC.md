@@ -527,8 +527,109 @@ consommer d'essai, jamais d'ordonnance partielle.
 |---|---|
 | ~~POST sans id créé~~ | ✅ B1 résolu (frontend consomme, fallback réconciliation conservé) |
 | ~~GET /patients?q=~~ | ✅ B1 résolu (consommation frontend à la phase 5) |
-| ~~Décrément de stock~~ | ✅ B1 (`POST /api/pharma/stock`) — branchement phase 5 |
+| ~~Décrément de stock~~ | ✅ B1 (`POST /api/pharma/stock`) — **branché phase 5** (délivrance + vente directe, voir §18) |
 | ~~Colonnes mutuelle / exonération / taux / dossier + table triage~~ | ✅ B2 (`migrations/001_rdc_metier.sql`, additive et sûre à relancer) — persistance AUTOMATIQUE des payloads déjà envoyés par le frontend dès que la migration est appliquée (`utils/rdcColumns.js`, dégradation gracieuse : sans migration, comportement hérité intact) |
 | ~~Dédupe `X-Idempotence-Key` côté serveur~~ | ✅ B2 (`middleware/idempotence.middleware.js` : clé connue → réponse stockée rejouée, zéro doublon après coupure réseau) |
-| `classe_therepeutique` + `seuil` sur `medicament` | ✅ colonnes créées par B2 — le frontend peut les alimenter via POST /api/pharma (extension à ouvrir phase 5) ; en attendant, alternative = carte de correspondance frontend |
-| Tables `mutuelle` / `patient_mutuelle` | ✅ créées par B2 — CRUD mutuelles à ouvrir (phase 5/6) : en attendant, les données mutuelles voyagent dans les payloads d'audit et s'impriment |
+| `classe_therepeutique` + `seuil` sur `medicament` | ✅ colonnes créées par B2 — le frontend peut les alimenter via POST /api/pharma (extension à ouvrir phase 6) ; en attendant, alternative = carte de correspondance frontend |
+| Tables `mutuelle` / `patient_mutuelle` | ✅ créées par B2 — CRUD mutuelles **ouvert en B3** (voir §18) |
+
+## 18. Branchement API réelle — pharmacie, mutuelles, triage (phase 5)
+
+### 18.1 Endpoints consommés (api_hopital, mise à niveau B3 — commit `57217cc`)
+
+| Endpoint | Usage RDC |
+|---|---|
+| `POST /api/pharma/stock` (B1) | Sortie de stock ATOMIQUE à chaque délivrance et vente directe : `{ id, quantite: -n }` — `GREATEST(0, stock + ?)` : jamais de stock négatif ; le contrôleur renvoie le nouveau stock |
+| `GET /api/ordonnance` (B3) | File d'attente inter-postes : **une ligne par médicament** (le GROUP BY hérité effondrait N lignes en 1 — la pharmacie ne voyait qu'un médicament sur N), `id_ordonnance` + `medicament_id` + `id_patient` exploitables, ORDER BY DESC LIMIT 200 |
+| `POST /api/pharma/vente` (B3) | Carnet de ventes directes (table `vente_pharma`) : vente au comptoir SANS dossier patient |
+| `GET /api/pharma/vente` (B3) | 100 dernières ventes (contrôle journalier, réconciliation) |
+| `GET/POST /api/mutuelle` (B3) | Liste des mutuelles actives (datalist Patients) / création d'organisme |
+| `GET/POST /api/patient/mutuelle` (B3) | Affectations d'un patient / UPSERT affectation (clé unique patient+mutuelle, n° adhérent) |
+| `POST /api/triage` (B2) | Triage 4 niveaux + urgence vitale (payload snake_case) |
+
+### 18.2 La délivrance, bout en bout (offline-first)
+
+1. **Sur le poste** (instantané, fonctionne hors ligne) : stock local
+   décrémenté, statut « délivrée », ticket imprimable.
+2. **Dans l'outbox** : une trace `delivrer_ordonnance` (cible api)
+   porte `sorties: [{medicament_id, nom_medicament, quantite}]` — l'id
+   numérique quand le stock vient de l'API, null pour un médicament du
+   cache local (résolution par nom au rejeu : cache `map_medic` puis
+   GET /api/pharma).
+3. **Au rejeu** : un `POST /api/pharma/stock` PAR ligne, clé
+   d'idempotence dérivée `<clé>:stock:<i>` — le middleware B2 rejoue la
+   réponse stockée : un rejeu après coupure réseau ne décrémente
+   JAMAIS deux fois.
+4. Tout prérequis manquant → `ErreurAttente` (retour en file sans
+   consommer d'essai) : jamais de sortie partielle.
+
+### 18.3 File d'attente inter-postes (nouveauté B3)
+
+Les ordonnances créées au service B apparaissent au comptoir A :
+- section « Ordonnances d'autres postes » — lignes serveur groupées par
+  consultation, dédup des importations déjà faites sur ce poste ;
+- **Prendre en charge** (1 clic) → l'ordonnance devient délivrable
+  localement (`SRV-<idConsultation>`, nom du patient affiché depuis le
+  serveur même sans fiche locale) ;
+- la délivrance enregistre la SORTIE physique de stock — elle ne
+  recrée JAMAIS l'ordonnance (elle existe déjà côté serveur) ;
+- hors ligne : dernier cache SW affiché avec badge explicite 🟠.
+
+### 18.4 Vente directe = carnet de ventes (réalité HGR)
+
+- Deux traces api : sorties de stock (idem délivrance) + `creer_vente`
+  → `POST /api/pharma/vente` (table `vente_pharma`).
+- Référence locale `VTE-ANNÉE-HHMMSS` (unique, imprimable, sans
+  compteur d'état), client nommé ou ANONYME (client_nom null), lignes
+  en JSON, total USD + **taux FC/USD au moment de la vente** (audit
+  bidevise).
+- Choix de modélisation : PAS de facture à patient fictif — la caisse
+  centrale n'intervient que pour les ventes liées à un dossier
+  (ordonnance → facture → paiements, phase 3). Le carnet remplace la
+  facture, comme sur le papier du comptoir.
+
+### 18.5 Mutuelles : de la saisie libre à l'endpoint réel
+
+- L'agent saisit l'organisme LIBREMENT (200+ mutuelles, liste jamais
+  bloquante) ; le serveur SUGGÈRE via datalist les noms officiels + % de
+  couverture (`GET /api/mutuelle`, cache 10 min).
+- L'enregistrement trace `affecter_mutuelle` (cible api) :
+  `POST /api/patient/mutuelle` au rejeu — id patient résolu par la
+  chaîne standard (numérique → cache B1 → réconciliation identité), id
+  mutuelle résolu par nom (GET /api/mutuelle, insensible accents/casse).
+- UPSERT côté serveur : ré-affecter met à jour le n° adhérent au lieu
+  de doubler la ligne.
+
+### 18.6 Triage branché + ErreurDefinitive (nouveau contrat d'erreur)
+
+- `creer_triage` passe en cible api (`POST /api/triage` — endpoint B2),
+  payload snake_case ; l'urgence vitale porte `autorise_par` +
+  `motif_autorisation` (contrôlée AUSSI côté serveur, 400 sinon).
+- **ErreurDefinitive** (nouvelle classe outbox) : le 501 « migration
+  001 non appliquée » bascule l'entrée en échec IMMÉDIATEMENT avec un
+  message explicite — rejouer 10 fois ne créera jamais la table ; la
+  trace reste en file, visible et imprimée (zéro perte, réenvoi
+  manuel possible après application de la migration).
+
+### 18.7 Vérification des 3 clics (pharmacie, phase 5 incluse)
+
+| Tâche | Clics | Détail |
+|---|---|---|
+| Délivrer une ordonnance de la file | 1 | « Délivrer » → stock + ticket |
+| Substituer en cas de rupture | 2 | « Substituer » sur l'alternative → re-délivrer |
+| Prendre en charge une ordonnance d'un autre poste | 1 | « Prendre en charge » → file locale |
+| Vente directe (1 ligne) | 4 | choisir médicament + quantité + Ajouter + Encaisser |
+| Imprimer le ticket de vente | +1 | bouton du modal d'aperçu |
+
+### 18.8 Tests (33 suites / 223 verts)
+
+- Sorties de stock : 1 POST par ligne, quantités négatives, idempotence
+  dérivée, introuvable → ErreurAttente sans POST partiel.
+- Carnet de ventes : POST sans résolution de patient, client anonyme.
+- Affectation mutuelle : réconciliation patient + mutuelle par nom ;
+  mutuelle inconnue → ErreurAttente ; 501 → echec immédiat (1 essai).
+- Triage : payload snake_case complet (urgence vitale tracée).
+- Store : délivrance trace api calibrée, rupture → RIEN décrémenté
+  RIEN tracé, vente directe 2 traces + référence VTE, import serveur
+  dédup + résolution par nom (introuvable → marqueur INCONNU, jamais
+  un crash).

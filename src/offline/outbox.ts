@@ -188,6 +188,21 @@ export class ErreurAttente extends Error {
   }
 }
 
+/**
+ * Rejet DÉFINITIF identifié côté client (sans statut HTTP 4xx) :
+ * l'entrée bascule immédiatement en « echec » — SANS consommer les
+ * 10 essais de rejeu. Cas d'usage : 501 « migration 001 non appliquée
+ * côté serveur » — rejouer 10 fois ne créera jamais la table, autant
+ * marquer l'échec tout de suite avec un message explicite (la trace
+ * reste en file, visible et imprimable — zéro perte).
+ */
+export class ErreurDefinitive extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ErreurDefinitive';
+  }
+}
+
 /** Erreur HTTP côté serveur avec statut identifiable (4xx/5xx). */
 export function statutHttpErreur(erreur: unknown): number | null {
   if (typeof erreur !== 'object' || erreur === null) return null;
@@ -246,6 +261,17 @@ export async function synchroniser(envoi: FonctionEnvoi): Promise<ResultatSync> 
           await db.outbox.update(entree.id, {
             statut: 'en_attente',
             erreur: `en attente : ${erreur.message}`,
+          });
+          continue;
+        }
+        if (erreur instanceof ErreurDefinitive) {
+          // Rejet identifié côté client (501 migration absente…) :
+          // échec immédiat, message explicite, pas de rejeu inutile.
+          echecs += 1;
+          await db.outbox.update(entree.id, {
+            statut: 'echec',
+            essais: entree.essais + 1,
+            erreur: erreur.message,
           });
           continue;
         }

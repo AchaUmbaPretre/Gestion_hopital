@@ -24,6 +24,7 @@ import { EnTeteRDC, ModalApercu, RecherchePatient, MoneyDual } from './component
 import { FormulaireCreationRapide } from './components';
 import { updatePatient } from './data/rdcStore';
 import { useHistoriquePatient, useListePatients, useTypesPatient } from './data/usePatients';
+import { useMutuellesRdc } from './data/usePharmacie';
 import type { Patient } from './data/types';
 import type { Passage } from '../../services/patientsApi';
 import { getTaux } from './data/money';
@@ -106,6 +107,11 @@ export default function PatientsRDC() {
 
   // FK typePatient par défaut pour le POST /api/patient (phase 2).
   const typePatientDefaut: number | null = typesPatient[0]?.id ?? null;
+
+  // Mutuelles actives du serveur (datalist — phase 5 B3) : la saisie
+  // reste libre (200+ organismes, liste jamais bloquante), le serveur
+  // SUGGÈRE les noms et % de couverture officiels.
+  const { mutuelles: mutuellesServeur } = useMutuellesRdc();
 
   // Mutuelle (édition inline)
   const [mutoOrganisme, setMutoOrganisme] = useState('');
@@ -235,7 +241,15 @@ export default function PatientsRDC() {
                     value={mutoOrganisme}
                     onChange={(e) => setMutoOrganisme(e.target.value)}
                     placeholder="Ex. : Mutuelle Santé Lubumbashi"
+                    list="rdc-mutuelles"
                   />
+                  <datalist id="rdc-mutuelles">
+                    {mutuellesServeur.map((m) => (
+                      <option key={m.id} value={m.nomOrganisme}>
+                        {`Couverture ${m.tauxCouverture} %`}
+                      </option>
+                    ))}
+                  </datalist>
                 </label>
                 <label>
                   Couverture (%)

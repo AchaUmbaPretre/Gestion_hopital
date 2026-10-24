@@ -131,6 +131,12 @@ export interface Ordonnance {
   diagnostic?: string;
   /** Notes cliniques (motif, antécédents, examen) — colonne `notes`. */
   notes?: string;
+  /**
+   * Nom du patient venant du SERVEUR (phase 5 : ordonnance importée de
+   * la file inter-postes, id `SRV-<idConsultation>` — le patient n'a
+   * pas forcément de fiche locale). Présent = ordonnance serveur.
+   */
+  patientNomServeur?: string;
 }
 
 /** Trace de triage (qui, quoi, niveau, orientation). */
