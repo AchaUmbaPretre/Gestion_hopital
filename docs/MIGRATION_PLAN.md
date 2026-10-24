@@ -227,18 +227,28 @@ Remplace : `pages/admission/*`, `pages/traitement/*`, `pages/rdv/*`.
 5. Chaque commit = 1 module cohérent + tests verts (23 suites / 105 tests à ce jour).
 6. `api_hopital` : évolution AUTORISÉE par le propriétaire depuis la phase 4 (additive, committée et poussée après chaque amélioration — B1 = ids créés, recherche q, décrément stock ; B2 = migration SQL RDC à venir) ; toute évolution reste documentée (§Gaps → résolus).
 
-## Gaps backend (nécessaires aux règles RDC — hors périmètre actuel)
+## Gaps backend (nécessaires aux règles RDC)
 
-| Règle métier | Donnée manquante |
-|---|---|
-| Bidevise auditable | colonne `taux_fc_usd` sur `paiements` |
-| Mutuelles | tables `mutuelle` + liaison patient (organisme, % couverture, n° adhérent) |
-| Exonération / urgence vitale | colonnes `mode`, `motif`, `autorise_par` sur `factures` |
-| Triage 4 niveaux | table `triage` (niveau, motif, orientation, urgence_vitale) |
-| Alternatives thérapeutiques | colonne `classe_therepeutique` + `seuil` sur `medicament` |
-| Référence patient RDC | colonne `dossier` (INIT-ANNÉE-N°) sur `patient` |
-| Recherche serveur patients | param `q` sur `GET /patients` (filtrage local aujourd'hui — nécessaire au-delà de quelques milliers de patients, voir RDC_BUSINESS_LOGIC §15.5) |
-| Dédupe des rejeux | lecture de `X-Idempotence-Key` côté serveur (l'en-tête est déjà envoyé par le moteur de sync ; le dédupe UI limite déjà les doublons) |
+> **Mise à jour phase 4** : le backend `api_hopital` est devenu
+> ÉVOLUTIF (autorisation du propriétaire, commits B1 `2b9da37` et B2
+> `61ed353`, poussés). Les gaps ci-dessous sont résolus côté serveur :
+>
+> | Règle métier | Statut |
+> |---|---|
+> | Bidevise auditable (`taux_fc_usd` sur `paiements`) | ✅ B1 (ids) + B2 (migration) |
+> | Mutuelles (tables `mutuelle` + `patient_mutuelle`) | ✅ B2 (CRUD à ouvrir phase 5/6) |
+> | Exonération / urgence vitale (`mode`, `motif`, `autorise_par` sur `factures`) | ✅ B2 — persistés automatiquement dès la migration appliquée |
+> | Triage 4 niveaux (table `triage`) | ✅ B2 (endpoint `POST /api/triage`, 501 tant que la migration n'est pas passée) |
+> | Alternatives thérapeutiques (`classe_therepeutique` + `seuil` sur `medicament`) | ✅ B2 (colonnes créées) |
+> | Référence patient RDC (`dossier`) | ✅ B2 |
+> | Recherche serveur patients (param `q`) | ✅ B1 |
+> | Dédupe des rejeux (`X-Idempotence-Key`) | ✅ B2 (middleware, réponse stockée rejouée) |
+> | Ids créés renvoyés par les POST | ✅ B1 |
+> | Décrément de stock (`POST /api/pharma/stock`) | ✅ B1 |
+>
+> **Application de la migration** (à faire sur la base de production) :
+> `mysql -u <USER> -p <BASE> < migrations/001_rdc_metier.sql` —
+> additive, sûre à relancer ; sans elle, l'héritage fonctionne intact.
 
 ## Journal des dépendances — justifié
 

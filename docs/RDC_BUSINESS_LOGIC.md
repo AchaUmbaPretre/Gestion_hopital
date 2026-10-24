@@ -521,13 +521,14 @@ consommer d'essai, jamais d'ordonnance partielle.
   traçabilité ne se limite pas au diagnostic structuré.
 - Auto-save 30 s + restauration INCHANGÉS (anti-coupure).
 
-### 17.4 Gaps restants (mise à jour après B1)
+### 17.4 Gaps restants (mise à jour après B1 + B2)
 
 | Gap | État |
 |---|---|
 | ~~POST sans id créé~~ | ✅ B1 résolu (frontend consomme, fallback réconciliation conservé) |
 | ~~GET /patients?q=~~ | ✅ B1 résolu (consommation frontend à la phase 5) |
 | ~~Décrément de stock~~ | ✅ B1 (`POST /api/pharma/stock`) — branchement phase 5 |
-| Colonnes mutuelle / exonération / taux / dossier + table triage | migration SQL à livrer (B2) + persistance conditionnelle |
-| Dédupe `X-Idempotence-Key` côté serveur | middleware à livrer (B2) |
-| `classe_therepeutique` + `seuil` sur `medicament` | migration SQL (B2) ; alternative = carte de correspondance frontend |
+| ~~Colonnes mutuelle / exonération / taux / dossier + table triage~~ | ✅ B2 (`migrations/001_rdc_metier.sql`, additive et sûre à relancer) — persistance AUTOMATIQUE des payloads déjà envoyés par le frontend dès que la migration est appliquée (`utils/rdcColumns.js`, dégradation gracieuse : sans migration, comportement hérité intact) |
+| ~~Dédupe `X-Idempotence-Key` côté serveur~~ | ✅ B2 (`middleware/idempotence.middleware.js` : clé connue → réponse stockée rejouée, zéro doublon après coupure réseau) |
+| `classe_therepeutique` + `seuil` sur `medicament` | ✅ colonnes créées par B2 — le frontend peut les alimenter via POST /api/pharma (extension à ouvrir phase 5) ; en attendant, alternative = carte de correspondance frontend |
+| Tables `mutuelle` / `patient_mutuelle` | ✅ créées par B2 — CRUD mutuelles à ouvrir (phase 5/6) : en attendant, les données mutuelles voyagent dans les payloads d'audit et s'impriment |
