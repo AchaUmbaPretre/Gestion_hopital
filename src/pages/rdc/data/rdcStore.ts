@@ -11,12 +11,17 @@
 
 import { useSyncExternalStore } from 'react';
 import type {
-  Medicament, MouvementCaisse, Ordonnance, Patient, RdcState, Triage, LigneOrdonnance,
+  Medicament, ModePaiement, MouvementCaisse, Ordonnance, Patient, RdcState, Triage, LigneOrdonnance,
 } from './types';
 import { seedRdcState } from './seed';
 import { enregistrerMutation } from '../../../offline/outbox';
 import { noterPatientRecent } from '../../../offline/db';
 import { construirePayloadCreationPatient } from '../../../services/patientsApi';
+import {
+  construirePayloadFacture,
+  construirePayloadPaiement,
+  type LigneFacturable,
+} from '../../../services/facturationApi';
 
 const STORAGE_KEY = 'rdc.store.v1';
 const SCHEMA_VERSION = '1';
@@ -61,6 +66,11 @@ function getState(): RdcState {
 /** Hook principal — re-rendu sur chaque mutation du store. */
 export function useRdcState(): RdcState {
   return useSyncExternalStore(subscribe, getState, getState);
+}
+
+/** Lecture directe de l'état (hors React — tests, envoi métier). */
+export function lireEtatRdc(): RdcState {
+  return getState();
 }
 
 // ------------------------------------------------------------
@@ -223,30 +233,122 @@ export function registerMouvement(m: Omit<MouvementCaisse, 'id' | 'reference'>):
     mouvements: [mouvement, ...state.mouvements],
     compteurRecu: state.compteurRecu + 1,
   });
-  // Outbox : facture + paiement (deux endpoints existants). Les
-  // données sans slot backend (mutuelle, exonération, urgence vitale,
-  // taux) restent DANS le payload — zéro perte, audit possible.
-  tracer('creer_facture', 'api', '/api/factures', {
-    patient_id: mouvement.patientId,
-    reference: mouvement.reference,
-    lignes: mouvement.lignes,
-    total: mouvement.totalUsd,
-    part_mutuelle: mouvement.partMutuelleUsd,
-    ticket_moderateur: mouvement.ticketModerateurUsd,
-    mode: mouvement.mode,
-    motif_exoneration: mouvement.motifExoneration ?? null,
-    autorise_par: mouvement.autorisePar ?? null,
-    taux_fc_usd: mouvement.tauxFcUsd, // gap : à stocker côté backend
-  }, `creer_facture:${mouvement.id}`);
-  tracer('creer_paiement', 'api', '/api/paiement', {
-    id_facture: mouvement.reference,
-    amount: mouvement.montantPayeUsd,
-    methode_paiement: mouvement.modePaiement ?? 'especes_usd',
-    taux_fc_usd: mouvement.tauxFcUsd, // gap : à stocker côté backend
-  }, `creer_paiement:${mouvement.id}`);
+  // Outbox — phase 3 : payloads calibrés sur api_hopital RÉEL.
+  //  - POST /api/factures : service_details (snake_case) + extras RDC
+  //    (mutuelle, exonération, urgence vitale, taux) pour l'audit ;
+  //    patient_id résolu au rejeu si le patient est local (réconciliation).
+  //  - POST /api/paiement : SEULEMENT s'il y a eu un encaissement —
+  //    exonération / urgence vitale ne créent pas de ligne de paiement
+  //    (montant 0 = bruit), la facture porte le statut et le solde.
   const patientMvt = state.patients.find((p) => p.id === mouvement.patientId);
+  const lignesFacturables: LigneFacturable[] = mouvement.lignes.map((l) => {
+    const acte = state.actes.find((a) => a.id === l.acteId);
+    return { acteId: l.acteId, libelle: l.libelle, montantUsd: l.montantUsd, categorie: acte?.categorie ?? 'Soins' };
+  });
+  tracer('creer_facture', 'api', '/api/factures', construirePayloadFacture({
+    mouvement,
+    patient: patientMvt,
+    patientIdServeur: idPatientServeur(patientMvt),
+    lignes: lignesFacturables,
+  }), `creer_facture:${mouvement.id}`);
+  if (mouvement.montantPayeUsd > 0) {
+    tracer('creer_paiement', 'api', '/api/paiement', construirePayloadPaiement({
+      montantPayeUsd: mouvement.montantPayeUsd,
+      datePaiementIso: mouvement.dateIso,
+      modePaiement: mouvement.modePaiement ?? 'especes_usd',
+      factureLocale: mouvement.reference,
+      patient: patientMvt,
+      patientIdServeur: idPatientServeur(patientMvt),
+      montantFactureUsd: mouvement.totalUsd,
+      dateEmissionFacture: mouvement.dateIso.slice(0, 10),
+      tauxFcUsd: mouvement.tauxFcUsd,
+    }), `creer_paiement:${mouvement.id}`);
+  }
   if (patientMvt) noterRecent(patientMvt);
   return mouvement;
+}
+
+/**
+ * ACOMpte complémentaire sur une facture EXISTANTE (paiements multiples
+ * — brief RDC 1.3 : « déposer un acompte, régler le solde à la sortie »).
+ *
+ *  - le solde de la facture d'origine diminue (trace mise à jour) ;
+ *  - un NOUVEAU reçu d'acompte est émis (traçabilité caisse : un
+ *    encaissement = un reçu imprimable) portant `factureRefOrigine` ;
+ *  - l'outbox ne trace QUE le paiement (pas de seconde facture) avec
+ *    `facture_locale` = référence de la facture d'origine → l'envoi
+ *    résoudra le MÊME id serveur (cache de réconciliation).
+ *
+ * @returns le reçu d'acompte créé, null si la facture est inconnue ou
+ *          le montant invalide / déjà soldé.
+ */
+export function ajouterAcompte(
+  referenceFacture: string,
+  montantUsd: number,
+  modePaiement: ModePaiement,
+): MouvementCaisse | null {
+  const origine = state.mouvements.find((m) => m.reference === referenceFacture);
+  if (!origine || origine.soldeUsd <= 0 || !(montantUsd > 0)) return null;
+  const montant = Math.min(montantUsd, origine.soldeUsd);
+  const arrondi = (v: number) => Math.round(v * 100) / 100;
+  const soldeApres = Math.max(0, arrondi(origine.soldeUsd - montant));
+
+  const reference = `REC-${new Date().getFullYear()}-${String(state.compteurRecu + 1).padStart(4, '0')}`;
+  const recu: MouvementCaisse = {
+    id: `MVT-${reference}`,
+    patientId: origine.patientId,
+    dateIso: new Date().toISOString(),
+    lignes: [],
+    totalUsd: 0,
+    partMutuelleUsd: 0,
+    ticketModerateurUsd: montant,
+    mode: 'acompte',
+    montantPayeUsd: arrondi(montant),
+    soldeUsd: soldeApres,
+    tauxFcUsd: origine.tauxFcUsd,
+    mutuelle: origine.mutuelle,
+    modePaiement,
+    reference,
+    factureRefOrigine: referenceFacture,
+  };
+  setState({
+    mouvements: [
+      recu,
+      ...state.mouvements.map((m) =>
+        m.reference === referenceFacture
+          ? { ...m, montantPayeUsd: arrondi(m.montantPayeUsd + montant), soldeUsd: soldeApres }
+          : m,
+      ),
+    ],
+    compteurRecu: state.compteurRecu + 1,
+  });
+
+  const patientAcompte = state.patients.find((p) => p.id === recu.patientId);
+  tracer('creer_paiement', 'api', '/api/paiement', construirePayloadPaiement({
+    montantPayeUsd: recu.montantPayeUsd,
+    datePaiementIso: recu.dateIso,
+    modePaiement,
+    factureLocale: referenceFacture,
+    patient: patientAcompte,
+    patientIdServeur: idPatientServeur(patientAcompte),
+    montantFactureUsd: origine.totalUsd,
+    dateEmissionFacture: origine.dateIso.slice(0, 10),
+    tauxFcUsd: origine.tauxFcUsd,
+  }), `creer_paiement:${recu.id}`);
+  if (patientAcompte) noterRecent(patientAcompte);
+  return recu;
+}
+
+/**
+ * Id MySQL du patient s'il vient de l'API (id numérique), sinon null :
+ * l'id serveur sera RÉSOLU au moment du rejeu par réconciliation
+ * (offline/envoiMetier) — jamais un dossier local "KI-2026-0007" n'est
+ * envoyé tel quel à une colonne MySQL INT.
+ */
+function idPatientServeur(patient: Patient | undefined): number | null {
+  if (!patient || !/^\d+$/.test(patient.id)) return null;
+  const n = Number(patient.id);
+  return Number.isFinite(n) && n > 0 ? n : null;
 }
 
 /**

@@ -168,6 +168,13 @@ export interface MouvementCaisse {
   autorisePar?: string;
   modePaiement?: ModePaiement;
   reference: string; // ex: REC-2026-0001
+  /**
+   * Reçu d'ACOMPTE : référence de la facture d'origine (REC-…) sur
+   * laquelle cet encaissement vient se déduire (paiements multiples
+   * sur une même facture — brief RDC 1.3). Absent = ce mouvement EST
+   * la facture (avec son premier paiement éventuel).
+   */
+  factureRefOrigine?: string;
 }
 
 /** État global du prototype (persisté en localStorage = offline). */

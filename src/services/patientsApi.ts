@@ -26,7 +26,14 @@
 import axios from 'axios';
 import config from '../config';
 import { attachResilience } from './resilience';
+import { getPaiementsApi, sommePaiementsParFacture } from './facturationApi';
+import { estObjet, estTableau, lireChaine, lireDateIso, lireNombre } from './apiHelpers';
 import type { Patient, Sexe } from '../pages/rdc/data/types';
+
+// Ré-export : les consommateurs historiques (tests, envoiMetier)
+// importent ces helpers depuis patientsApi — l'implémentation vit
+// désormais dans apiHelpers (anti-cycle).
+export { estObjet, estTableau, lireChaine, lireDateIso, lireNombre };
 
 const DOMAINE: string = config.REACT_APP_SERVER_DOMAIN ?? '';
 
@@ -34,58 +41,10 @@ const DOMAINE: string = config.REACT_APP_SERVER_DOMAIN ?? '';
 const clientApi = attachResilience(axios.create(), { timeoutMs: 8_000, retries: 3 });
 
 // ------------------------------------------------------------
-// Lecture défensive des réponses MySQL (zéro `any`)
+// (Lecture défensive : déplacée dans services/apiHelpers.ts en
+// phase 3 pour éviter un cycle d'imports patientsApi ↔ facturationApi.
+// Les helpers sont ré-exportés ci-dessus pour la compatibilité.)
 // ------------------------------------------------------------
-
-export function estObjet(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null;
-}
-
-export function estTableau(v: unknown): v is unknown[] {
-  return Array.isArray(v);
-}
-
-/** Chaîne trimmed ; nombres et dates acceptés ; sinon ''. */
-export function lireChaine(v: unknown): string {
-  if (typeof v === 'string') return v.trim();
-  if (typeof v === 'number' && Number.isFinite(v)) return String(v);
-  return '';
-}
-
-/** Nombre fini (string numérique acceptée) ; sinon null. */
-export function lireNombre(v: unknown): number | null {
-  if (typeof v === 'number' && Number.isFinite(v)) return v;
-  if (typeof v === 'string' && v.trim() !== '' && Number.isFinite(Number(v))) return Number(v);
-  return null;
-}
-
-/**
- * Première date valide parmi les noms de colonnes habituels de
- * api_hopital (les tables n'ont pas de convention homogène).
- */
-const CHAMPS_DATE_CANDIDATS = [
-  'date',
-  'dateConsultation',
-  'date_emission',
-  'dateCreation',
-  'createdAt',
-  'created_at',
-] as const;
-
-export function lireDateIso(brut: Record<string, unknown>): string {
-  for (const cle of CHAMPS_DATE_CANDIDATS) {
-    const v = brut[cle];
-    if (typeof v === 'string' && v.trim() !== '') {
-      const d = new Date(v);
-      if (!Number.isNaN(d.getTime())) return d.toISOString();
-    }
-    if (typeof v === 'number' && Number.isFinite(v)) {
-      const d = new Date(v);
-      if (!Number.isNaN(d.getTime())) return d.toISOString();
-    }
-  }
-  return '';
-}
 
 // ------------------------------------------------------------
 // Mapping patient API -> modèle RDC (types.ts)
@@ -209,19 +168,33 @@ export interface Passage {
 }
 
 /** Factures du patient (GET /api/factures — champ patient_id). */
-export function mapPassagesFacturesApi(reponse: unknown, patientId: string): Passage[] {
+export function mapPassagesFacturesApi(
+  reponse: unknown,
+  patientId: string,
+  paiementsParFacture: ReadonlyMap<number, { somme: number; nombre: number }> = new Map(),
+): Passage[] {
   if (!estTableau(reponse)) return [];
   const passages: Passage[] = [];
   for (const brut of reponse) {
     if (!estObjet(brut)) continue;
     if (lireChaine(brut['patient_id']) !== patientId) continue;
     const montant = lireNombre(brut['montant_total']);
+    const idFacture = lireNombre(brut['id_facture']);
+    const paiement = idFacture !== null ? paiementsParFacture.get(idFacture) : undefined;
     passages.push({
       dateIso: lireDateIso(brut),
       type: 'facture',
       libelle: `Facture n° ${lireChaine(brut['id_facture']) || '—'}`,
       montantUsd: montant ?? undefined,
       statut: lireChaine(brut['status']) || undefined,
+      // Encaissements serveurs joints (phase 3) : le solde réel se lit
+      // ici — acomptes multiples compris.
+      detail:
+        paiement !== undefined && montant !== null && paiement.somme < montant - 0.01
+          ? `Payé ${paiement.somme.toFixed(2)} $ sur ${montant.toFixed(2)} $ (${paiement.nombre} encaissement${paiement.nombre > 1 ? 's' : ''})`
+          : paiement !== undefined
+            ? `Payé ${paiement.somme.toFixed(2)} $`
+            : undefined,
     });
   }
   return passages;
@@ -249,18 +222,22 @@ export function mapPassagesConsultationsApi(reponse: unknown, patientId: string)
 }
 
 /**
- * Historique serveur du patient. `Promise.allSettled` : si les factures
- * échouent, les consultations restent affichées (et vice versa) — un
- * endpoint en panne ne prive pas le soignant de tout l'historique.
+ * Historique serveur du patient. `Promise.allSettled` : si un endpoint
+ * échoue (factures, consultations ou paiements), les autres restent
+ * affichés — un endpoint en panne ne prive pas le soignant de tout
+ * l'historique.
  */
 export async function getHistoriqueApi(patientId: string): Promise<Passage[]> {
-  const [factures, consultations] = await Promise.allSettled([
+  const [factures, consultations, paiements] = await Promise.allSettled([
     clientApi.get(`${DOMAINE}/api/factures`),
     clientApi.get(`${DOMAINE}/api/consult`),
+    getPaiementsApi(),
   ]);
   const passages: Passage[] = [];
   if (factures.status === 'fulfilled') {
-    passages.push(...mapPassagesFacturesApi(factures.value.data, patientId));
+    const paiementsParFacture =
+      paiements.status === 'fulfilled' ? sommePaiementsParFacture(paiements.value) : new Map();
+    passages.push(...mapPassagesFacturesApi(factures.value.data, patientId, paiementsParFacture));
   }
   if (consultations.status === 'fulfilled') {
     passages.push(...mapPassagesConsultationsApi(consultations.value.data, patientId));

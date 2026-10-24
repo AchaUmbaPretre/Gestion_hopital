@@ -39,10 +39,16 @@ const EN_TETE_HOPITAL = (
 export function RecuFacture({ mouvement, patient }: { mouvement: MouvementCaisse; patient: Patient | undefined }) {
   const fc = usdToFc(mouvement.totalUsd, mouvement.tauxFcUsd);
   const estException = mouvement.mode === 'exonere' || mouvement.mode === 'urgence_vitale';
+  /** Reçu d'acompte : encaissement sur une facture déjà émise. */
+  const estAcompte = mouvement.factureRefOrigine !== undefined;
   return (
     <div className={`${styles.doc} print-zone`} id="print-document">
       {EN_TETE_HOPITAL}
-      <div className={styles.docTitre}>Reçu de paiement — {mouvement.reference}</div>
+      <div className={styles.docTitre}>
+        {estAcompte
+          ? `Acompte — facture ${mouvement.factureRefOrigine} · reçu ${mouvement.reference}`
+          : `Reçu de paiement — ${mouvement.reference}`}
+      </div>
 
       <div className={styles.docGrid}>
         <LigneChamp label="Patient" valeur={patient ? `${patient.nom} ${patient.prenom}` : '—'} />
@@ -60,33 +66,54 @@ export function RecuFacture({ mouvement, patient }: { mouvement: MouvementCaisse
           </tr>
         </thead>
         <tbody>
-          {mouvement.lignes.map((l) => (
-            <tr key={l.acteId}>
-              <td>{l.libelle}</td>
-              <td className={styles.num}>{formatUsd(l.montantUsd)}</td>
-              <td className={styles.num}>{formatFc(usdToFc(l.montantUsd, mouvement.tauxFcUsd))}</td>
+          {estAcompte ? (
+            <tr>
+              <td>Encaissement sur facture {mouvement.factureRefOrigine} (aucun nouvel acte facturé)</td>
+              <td className={styles.num}>{formatUsd(mouvement.montantPayeUsd)}</td>
+              <td className={styles.num}>{formatFc(usdToFc(mouvement.montantPayeUsd, mouvement.tauxFcUsd))}</td>
             </tr>
-          ))}
+          ) : (
+            mouvement.lignes.map((l) => (
+              <tr key={l.acteId}>
+                <td>{l.libelle}</td>
+                <td className={styles.num}>{formatUsd(l.montantUsd)}</td>
+                <td className={styles.num}>{formatFc(usdToFc(l.montantUsd, mouvement.tauxFcUsd))}</td>
+              </tr>
+            ))
+          )}
         </tbody>
       </table>
 
       <div className={styles.docTotaux}>
-        <div className={styles.ligne}><span>Total</span><span>{formatUsd(mouvement.totalUsd)} · {formatFc(fc)}</span></div>
-        {mouvement.partMutuelleUsd > 0 ? (
-          <div className={styles.ligne}>
-            <span>Prise en charge {mouvement.mutuelle?.organisme ?? 'mutuelle'}</span>
-            <span>- {formatUsd(mouvement.partMutuelleUsd)}</span>
-          </div>
-        ) : null}
-        <div className={styles.ligne}><span>Ticket modérateur (patient)</span><span>{formatUsd(mouvement.ticketModerateurUsd)}</span></div>
-        <div className={styles.ligne}><span>Payé maintenant</span><span>{formatUsd(mouvement.montantPayeUsd)}</span></div>
-        {mouvement.soldeUsd > 0 ? (
-          <div className={styles.ligne}><span>Échéance (acompte)</span><span>{formatUsd(mouvement.soldeUsd)}</span></div>
-        ) : null}
-        <div className={styles.ligne + ' ' + styles.fort}>
-          <span>{mouvement.soldeUsd > 0 ? 'Reste dû' : 'Solde'}</span>
-          <span>{formatUsd(mouvement.soldeUsd)} · {formatFc(usdToFc(mouvement.soldeUsd, mouvement.tauxFcUsd))}</span>
-        </div>
+        {estAcompte ? (
+          // Reçu d'acompte : pas de re-détail des actes (facturés une seule fois).
+          <>
+            <div className={styles.ligne}><span>Encaissé maintenant</span><span>{formatUsd(mouvement.montantPayeUsd)} · {formatFc(usdToFc(mouvement.montantPayeUsd, mouvement.tauxFcUsd))}</span></div>
+            <div className={styles.ligne + ' ' + styles.fort}>
+              <span>{mouvement.soldeUsd > 0 ? 'Reste dû sur la facture' : 'Facture soldée'}</span>
+              <span>{formatUsd(mouvement.soldeUsd)} · {formatFc(usdToFc(mouvement.soldeUsd, mouvement.tauxFcUsd))}</span>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className={styles.ligne}><span>Total</span><span>{formatUsd(mouvement.totalUsd)} · {formatFc(fc)}</span></div>
+            {mouvement.partMutuelleUsd > 0 ? (
+              <div className={styles.ligne}>
+                <span>Prise en charge {mouvement.mutuelle?.organisme ?? 'mutuelle'}</span>
+                <span>- {formatUsd(mouvement.partMutuelleUsd)}</span>
+              </div>
+            ) : null}
+            <div className={styles.ligne}><span>Ticket modérateur (patient)</span><span>{formatUsd(mouvement.ticketModerateurUsd)}</span></div>
+            <div className={styles.ligne}><span>Payé maintenant</span><span>{formatUsd(mouvement.montantPayeUsd)}</span></div>
+            {mouvement.soldeUsd > 0 ? (
+              <div className={styles.ligne}><span>Échéance (acompte)</span><span>{formatUsd(mouvement.soldeUsd)}</span></div>
+            ) : null}
+            <div className={styles.ligne + ' ' + styles.fort}>
+              <span>{mouvement.soldeUsd > 0 ? 'Reste dû' : 'Solde'}</span>
+              <span>{formatUsd(mouvement.soldeUsd)} · {formatFc(usdToFc(mouvement.soldeUsd, mouvement.tauxFcUsd))}</span>
+            </div>
+          </>
+        )}
       </div>
 
       {mouvement.mutuelle && mouvement.partMutuelleUsd > 0 ? (

@@ -15,31 +15,14 @@
  * moment du rejeu (jamais figé à la mise en file).
  */
 
-import axios from 'axios';
-import config from '../config';
 import { synchroniser, type ResultatSync } from './outbox';
+import { envoiMetier } from './envoiMetier';
 
-const DOMAINE: string = config.REACT_APP_SERVER_DOMAIN ?? '';
 const TAG_SYNC_SW = 'RDC_SYNC';
-
-/** Envoi réel : axios + en-tête d'idempotence (dédup côté serveur). */
-export async function envoiAxios(
-  methode: 'POST' | 'PUT',
-  endpoint: string,
-  payload: unknown,
-  cleIdempotence: string,
-): Promise<void> {
-  await axios.request({
-    method: methode,
-    url: `${DOMAINE}${endpoint}`,
-    data: payload,
-    headers: { 'X-Idempotence-Key': cleIdempotence },
-  });
-}
 
 /** Lance une synchronisation — les erreurs réseau sont déjà gérées. */
 export function lancerSynchronisation(): Promise<ResultatSync> {
-  return synchroniser(envoiAxios).catch(() => ({ envoyes: 0, echecs: 0 }));
+  return synchroniser(envoiMetier).catch(() => ({ envoyes: 0, echecs: 0, attendus: 0 }));
 }
 
 let installe = false;

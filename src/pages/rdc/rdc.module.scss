@@ -316,6 +316,7 @@
   &.rupture { background: var(--color-status-danger-bg); color: var(--color-status-danger); border-color: var(--color-status-danger-border); }
   &.info    { background: var(--color-status-info-bg); color: var(--color-status-info); border-color: var(--color-status-info-border); }
   &.danger  { background: var(--color-status-danger-bg); color: var(--color-status-danger); border-color: var(--color-status-danger-border); }
+  &.warn    { background: var(--color-status-warning-bg); color: var(--color-status-warning); border-color: var(--color-status-warning-border); }
 }
 
 // Badge de confirmation "Prise en charge autorisée"

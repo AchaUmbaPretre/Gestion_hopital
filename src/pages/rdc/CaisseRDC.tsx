@@ -14,10 +14,11 @@ import { Button, InputNumber, Modal, message } from 'antd';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import styles from './rdc.module.scss';
 import { EnTeteRDC, ModalApercu, MoneyDual, RecherchePatient } from './components';
-import { useRdcState, registerMouvement } from './data/rdcStore';
-import { formatFc, getTaux, setTaux, usdToFc } from './data/money';
+import { useRdcState, registerMouvement, ajouterAcompte } from './data/rdcStore';
+import { formatFc, formatUsd, getTaux, setTaux, usdToFc } from './data/money';
 import type { ModePaiement, ModeRecouvrement, MouvementCaisse, Patient } from './data/types';
 import { RecuFacture } from './printDocuments';
+import { lancerSynchronisation } from '../../offline/syncEngine';
 
 const UTILISATEUR_DEFAUT = 'Caissier de service';
 
@@ -31,8 +32,13 @@ export default function CaisseRDC() {
   const [coches, setCoches] = useState<Set<string>>(new Set());
   const [appliquerMutuelle, setAppliquerMutuelle] = useState(true);
 
-  // Modal acompte
+  // Modal acompte — deux usages :
+  //  - 'creation'   : acompte sur une NOUVELLE facture (actes cochés) ;
+  //  - 'complement' : encaissement sur une facture IMPAYÉE existante
+  //    (dépose d'acompte à l'admission, solde réglé à la sortie —
+  //    brief RDC 1.3) : AUCUNE seconde facture n'est créée.
   const [acompteOuvert, setAcompteOuvert] = useState(false);
+  const [acompteMode, setAcompteMode] = useState<'creation' | 'complement'>('creation');
   const [montantAcompte, setMontantAcompte] = useState<number>(0);
   const [modePaiement, setModePaiement] = useState<ModePaiement>('especes_fc');
 
@@ -65,6 +71,21 @@ export default function CaisseRDC() {
     ? Math.round(totalUsd * patient.mutuelle.couverturePct) / 100
     : 0;
   const ticketModerateurUsd = Math.max(0, totalUsd - partMutuelleUsd);
+
+  /**
+   * Facture du patient encore PARTIELLEMENT payée (acompte déposé,
+   * solde dû) — la plus récente d'abord. Un encaissement complémentaire
+   * viendra la solder au lieu de facturer les actes une seconde fois.
+   */
+  const factureOuverte: MouvementCaisse | null = useMemo(
+    () =>
+      patientId !== null
+        ? state.mouvements.find(
+            (m) => m.patientId === patientId && m.soldeUsd > 0 && m.factureRefOrigine === undefined,
+          ) ?? null
+        : null,
+    [state.mouvements, patientId],
+  );
 
   const pretPourPaiement = patient !== null && lignes.length > 0;
 
@@ -112,6 +133,25 @@ export default function CaisseRDC() {
     } else {
       message.success(`Paiement enregistré — reçu ${mv.reference}`);
     }
+    // En ligne : la facture + le paiement partent immédiatement (le
+    // rejeu résout les ids serveur par réconciliation). Hors ligne :
+    // l'outbox rejouera au retour du réseau — zéro action requise.
+    void lancerSynchronisation();
+  }
+
+  /** Encaissement complémentaire sur la facture ouverte (pas de nouvelle facture). */
+  function enregistrerComplement() {
+    if (!factureOuverte) return;
+    const recu = ajouterAcompte(factureOuverte.reference, Math.min(montantAcompte, factureOuverte.soldeUsd), modePaiement);
+    if (!recu) return;
+    setMouvementCree(recu);
+    setAcompteOuvert(false);
+    message.success(
+      recu.soldeUsd > 0
+        ? `Acompte enregistré — reste dû ${formatUsd(recu.soldeUsd)} sur ${factureOuverte.reference}`
+        : `Solde réglé — facture ${factureOuverte.reference} soldée`,
+    );
+    void lancerSynchronisation();
   }
 
   const exceptionValide = motifException.trim().length >= 5 && autorisePar.trim().length >= 3;
@@ -147,6 +187,33 @@ export default function CaisseRDC() {
           />
         </div>
       )}
+
+      {/* ---------- SOLDE EN COURS (facture partiellement payée) ---------- */}
+      {patient && factureOuverte ? (
+        <div className={styles.card} style={{ marginBottom: 16, borderLeft: '4px solid var(--rdc-warning, #d97706)' }}>
+          <div className={styles.row} style={{ flexWrap: 'wrap', gap: 12 }}>
+            <span className={styles.badge + ' ' + styles.warn}>Solde en cours</span>
+            <span>
+              Facture <strong className="font-data">{factureOuverte.reference}</strong> — reste dû{' '}
+              <strong><MoneyDual usd={factureOuverte.soldeUsd} taux={taux} fort /></strong>
+            </span>
+            <div className={styles.spacer} />
+            <Button
+              type="primary"
+              onClick={() => {
+                setAcompteMode('complement');
+                setMontantAcompte(factureOuverte.soldeUsd);
+                setAcompteOuvert(true);
+              }}
+            >
+              💵 Régler / compléter ce paiement
+            </Button>
+          </div>
+          <p className={styles.autosave} style={{ marginTop: 6, marginBottom: 0 }}>
+            L'acompte a été déposé, le solde est réglable maintenant (sortie du patient) — aucune seconde facture ne sera créée.
+          </p>
+        </div>
+      ) : null}
 
       <div className={styles.caisseGrid}>
         {/* ---------- ACTES ---------- */}
@@ -234,7 +301,7 @@ export default function CaisseRDC() {
               <Button
                 size="large"
                 disabled={!pretPourPaiement}
-                onClick={() => { setMontantAcompte(Math.round(ticketModerateurUsd / 2 * 100) / 100); setAcompteOuvert(true); }}
+                onClick={() => { setAcompteMode('creation'); setMontantAcompte(Math.round(ticketModerateurUsd / 2 * 100) / 100); setAcompteOuvert(true); }}
               >
                 💵 Acompte…
               </Button>
@@ -262,22 +329,32 @@ export default function CaisseRDC() {
         </aside>
       </div>
 
-      {/* ---------- MODAL ACOMPTE ---------- */}
+      {/* ---------- MODAL ACOMPTE (création ou complément) ---------- */}
       <Modal
         open={acompteOuvert}
-        title="Acompte (paiement fractionné)"
+        title={acompteMode === 'complement' && factureOuverte
+          ? `Compléter le paiement — facture ${factureOuverte.reference}`
+          : 'Acompte (paiement fractionné)'}
         onCancel={() => setAcompteOuvert(false)}
-        okText="Enregistrer l'acompte"
-        onOk={() => enregistrer('acompte', Math.min(montantAcompte, ticketModerateurUsd))}
+        okText={acompteMode === 'complement' ? 'Encaisser sur cette facture' : "Enregistrer l'acompte"}
+        onOk={() => (acompteMode === 'complement' && factureOuverte ? enregistrerComplement() : enregistrer('acompte', Math.min(montantAcompte, ticketModerateurUsd)))}
         okButtonProps={{ disabled: montantAcompte <= 0 }}
       >
         <div className={styles.stack}>
-          <p>Le solde sera à régler à la sortie (brief RDC 1.3 : paiement fractionné fréquent).</p>
+          {acompteMode === 'complement' && factureOuverte ? (
+            <p>
+              Facture <strong className="font-data">{factureOuverte.reference}</strong> — total{' '}
+              {formatUsd(factureOuverte.totalUsd)}, déjà payé {formatUsd(factureOuverte.montantPayeUsd)},
+              reste dû <strong>{formatUsd(factureOuverte.soldeUsd)}</strong>.
+            </p>
+          ) : (
+            <p>Le solde sera à régler à la sortie (brief RDC 1.3 : paiement fractionné fréquent).</p>
+          )}
           <label>
-            Montant de l'acompte (USD)
+            {acompteMode === 'complement' ? 'Montant encaissé maintenant (USD)' : "Montant de l'acompte (USD)"}
             <InputNumber
               min={0.01}
-              max={ticketModerateurUsd}
+              max={acompteMode === 'complement' && factureOuverte ? factureOuverte.soldeUsd : ticketModerateurUsd}
               step={0.5}
               value={montantAcompte}
               onChange={(v) => setMontantAcompte(v ?? 0)}
@@ -285,7 +362,10 @@ export default function CaisseRDC() {
               addonAfter="$"
             />
             <div className={styles.amount} style={{ marginTop: 6 }}>
-              = {formatFc(usdToFc(montantAcompte, taux))} — restera dû {formatFc(usdToFc(Math.max(0, ticketModerateurUsd - montantAcompte), taux))}
+              = {formatFc(usdToFc(montantAcompte, taux))}
+              {acompteMode === 'complement' && factureOuverte
+                ? ` — restera dû ${formatFc(usdToFc(Math.max(0, factureOuverte.soldeUsd - montantAcompte), taux))}`
+                : ` — restera dû ${formatFc(usdToFc(Math.max(0, ticketModerateurUsd - montantAcompte), taux))}`}
             </div>
           </label>
           <label>

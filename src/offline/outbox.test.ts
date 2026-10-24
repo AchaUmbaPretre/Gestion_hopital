@@ -18,6 +18,7 @@ import {
   rafraichirCompteurs,
   getInstantaneSync,
   statutHttpErreur,
+  ErreurAttente,
   type FonctionEnvoi,
 } from './outbox';
 
@@ -65,7 +66,7 @@ describe('outbox offline', () => {
       cleIdempotence: 'creer_ordonnance:ORD-1',
     });
     const resultat = await synchroniser(envoiOk);
-    expect(resultat).toEqual({ envoyes: 1, echecs: 0 });
+    expect(resultat).toEqual({ envoyes: 1, echecs: 0, attendus: 0 });
     expect(await db!.outbox.count()).toBe(0);
     expect(getInstantaneSync().enAttente).toBe(0);
     expect(getInstantaneSync().dernierSyncIso).not.toBeNull();
@@ -83,14 +84,14 @@ describe('outbox offline', () => {
       cleIdempotence: 'creer_patient:404',
     });
     const resultat = await synchroniser(envoi404);
-    expect(resultat).toEqual({ envoyes: 0, echecs: 1 });
+    expect(resultat).toEqual({ envoyes: 0, echecs: 1, attendus: 0 });
     const entree = await db!.outbox.toArray();
     expect(entree).toHaveLength(1);
     expect(entree[0]?.statut).toBe('echec');
     expect(getInstantaneSync().echecs).toBe(1);
     // Une deuxième synchro ne retente PAS les échecs.
     const deuxieme = await synchroniser(envoiOk);
-    expect(deuxieme).toEqual({ envoyes: 0, echecs: 0 });
+    expect(deuxieme).toEqual({ envoyes: 0, echecs: 0, attendus: 0 });
   });
 
   test('erreur réseau → retour « en_attente » avec essai comptabilisé', async () => {
@@ -105,7 +106,7 @@ describe('outbox offline', () => {
       cleIdempotence: 'creer_patient:reseau',
     });
     const resultat = await synchroniser(envoiReseau);
-    expect(resultat).toEqual({ envoyes: 0, echecs: 1 });
+    expect(resultat).toEqual({ envoyes: 0, echecs: 1, attendus: 0 });
     const entree = await db!.outbox.toArray();
     expect(entree[0]?.statut).toBe('en_attente');
     expect(entree[0]?.essais).toBe(1);
@@ -122,11 +123,33 @@ describe('outbox offline', () => {
       cleIdempotence: 'creer_triage:TRI-1',
     });
     const resultat = await synchroniser(envoiEspion);
-    expect(resultat).toEqual({ envoyes: 0, echecs: 0 });
+    expect(resultat).toEqual({ envoyes: 0, echecs: 0, attendus: 0 });
     expect(espion).not.toHaveBeenCalled();
     const entree = await db!.outbox.toArray();
     expect(entree).toHaveLength(1); // la trace reste en file
     expect(entree[0]?.statut).toBe('en_attente');
+  });
+
+  test('ErreurAttente → reste en_attente SANS consommer d\'essai (prérequis pas encore sync)', async () => {
+    const envoiAttente: FonctionEnvoi = async () => {
+      throw new ErreurAttente('patient local pas encore synchronisé');
+    };
+    await enregistrerMutation({
+      type: 'creer_facture',
+      cible: 'api',
+      endpoint: '/api/factures',
+      payload: { patient_id: null, montant_total: 5 },
+      cleIdempotence: 'creer_facture:attente',
+    });
+    const resultat = await synchroniser(envoiAttente);
+    expect(resultat).toEqual({ envoyes: 0, echecs: 0, attendus: 1 });
+    const entree = await db!.outbox.toArray();
+    expect(entree).toHaveLength(1);
+    expect(entree[0]?.statut).toBe('en_attente');
+    expect(entree[0]?.essais).toBe(0); // PAS d'essai consommé
+    expect(entree[0]?.erreur).toContain('patient local');
+    // Le badge ne compte PAS cela comme un échec.
+    expect(getInstantaneSync().echecs).toBe(0);
   });
 
   test('statutHttpErreur : statut extrait, sinon null', () => {

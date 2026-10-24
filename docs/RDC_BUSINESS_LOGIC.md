@@ -347,3 +347,115 @@ rejeu différé, cible `local` jamais envoyée, LRU patients récents plafonné 
 | `GET /patients?q=` | le filtrage serveur deviendra nécessaire au-delà de quelques milliers de patients (la liste complète transite aujourd'hui) |
 | Colonne `dossier` | le dossier INIT-ANNÉE-N° reste généré côté front ; sans colonne, l'ID MySQL (numérique) s'affiche pour les fiches serveur |
 | Dédupe serveur par `X-Idempotence-Key` | le backend actuel l'ignore : un rejeu après 4xx réussi peut créer un doublon physique (limité par la dédup UI) |
+
+## 16. Branchement API réelle — caisse & facturation (phase 3)
+
+### 16.1 Endpoints consommés (backend gelé, adapté côté front)
+
+| Endpoint | Usage phase 3 |
+|---|---|
+| `POST /api/factures` | une facture par passage en caisse (contrôleur : `patient_id, date_emission, date_limite, montant_total, status` ; modèle : `req.body.service_details`) |
+| `POST /api/paiement` | chaque encaissement (`id_facture, amount, date_paiement, methode_paiement, transaction_id`) |
+| `GET /api/factures` | réconciliation des ids + historique 360° (JOIN `patient.nom_patient`) |
+| `GET /api/paiement` | encaissements joints aux factures de la fiche 360° |
+
+### 16.2 Correspondance des champs (front RDC → colonnes MySQL)
+
+- **`service_details`** (SNAKE_CASE — le destructuring `serviceDetails`
+  du contrôleur n'est PAS celui lu par `insertFactureDetails`) :
+  `{ service_type: <catégorie HGR>, service_id: 0, montant: <USD> }`.
+  `service_id = 0` : la caisse facture des actes tarifés, il n'existe
+  ni enregistrement de consultation ni ligne de médicament source à ce
+  stade (le formulaire hérité FormFactures.jsx soumet lui aussi des
+  service_id vides) ; `GET /api/factures/one` affichera « Unknown
+  Service » pour ces lignes, le montant reste intact.
+- **`status`** : `Payée` (totalité / acompte soldé), `Partielle`
+  (acompte à découvert), `Exonérée` (statut d'exonération), `En
+  attente` (urgence vitale — paiement différé). Conventions de
+  l'écran hérité FactureDetail.jsx.
+- **`date_limite`** : jour même si rien n'est dû, sinon +15 jours
+  (acompte, régularisation d'urgence vitale).
+- **`amount` / `montant_total`** : en USD, devise de référence des
+  tarifs ; l'encaissement FC est converti au taux TRACÉ dans le
+  payload (`taux_fc_usd`) — audit bidevise.
+- **`methode_paiement`** : `especes_fc` / `especes_usd` /
+  `mobile_money` (mobile money ou Illlicocash).
+- **`transaction_id`** : référence du reçu local (`REC-ANNÉE-N°`) —
+  trace croisée reçu imprimé ↔ ligne serveur, en attendant une
+  colonne dédiée.
+- **Extras RDC dans le payload** (ignorés par le backend actuel,
+  prêts pour les colonnes à venir — zéro perte) : `facture_locale`,
+  `dossier_patient`, `patient_identite`, `part_mutuelle`,
+  `ticket_moderateur`, `mutuelle` (organisme, %, n° adhérent),
+  `motif_exoneration`, `autorise_par`, `taux_fc_usd`, `source`.
+
+### 16.3 Réconciliation des identifiants (contrainte : POST /factures ne renvoie pas d'id)
+
+Le contrôleur répond `{ message: 'Facture créée avec succès' }` sans
+l'id créé ; les acomptes exigent pourtant l'`id_facture` serveur.
+Deux niveaux de résolution, à l'ENVOI (jamais à la mise en file) :
+
+1. **Cache IndexedDB** (`meta map_facture:<référence>`) : rempli dès
+   que la réconciliation d'une facture a réussi — les acomptes
+   suivants partent sans aucun GET supplémentaire.
+2. **Correspondance live** sur GET /api/factures : même patient_id,
+   même montant (±0,01 USD), même date d'émission (préfixe), en
+   excluant les ids déjà appariés (anti double-appariement si deux
+   factures identiques le même jour) ; la plus récente non appariée
+   gagne. Ambiguïté résiduelle documentée (§16.5).
+
+Le **patient** suit la même logique : id numérique direct s'il vient
+de l'API, sinon correspondance par identité (nom + prénom normalisés
+sans accents + téléphone — même clé que la fusion d'écran Patients)
+sur GET /api/patient. L'ordre FIFO de l'outbox garantit que la
+création patient est rejouée AVANT la première facture.
+
+**ErreurAttente** : un prérequis manquant (patient pas encore
+synchronisé, facture pas encore visible côté serveur) met l'entrée en
+attente SANS consommer d'essai — jamais de paiement orphelin, jamais
+de bascule en « echec » pour une simple question d'ordre. Entrées
+antérieures à la phase 3 (payloads prototype, sans identité de
+réconciliation) : elles restent en attente visibles dans le badge,
+sans pollution du serveur ; purge possible via la réinitialisation de
+démonstration.
+
+### 16.4 Acomptes multiples (paiement fractionné — réalité RDC)
+
+- Dépose d'acompte à l'admission → facture `Partielle` + première
+  ligne `paiements` ; solde réglé à la sortie → `ajouterAcompte()`
+  déduit du solde de la facture d'origine et n'émet qu'une ligne
+  `paiements` supplémentaire — JAMAIS une seconde facture.
+- L'écran Caisse affiche le bandeau « Solde en cours » (facture
+  REC-…, reste dû en FC + USD) avec bouton « Régler / compléter ce
+  paiement » : 1 clic sur le bandeau, montant pré-rempli au solde,
+  encaissement — 3 clics au total.
+- Reçu d'acompte : variante imprimée « Acompte — facture REC-… » avec
+  encaissé + reste dû, SANS re-détail des actes (facturés une seule
+  fois).
+- L'exonération et l'urgence vitale ne créent PAS de ligne de
+  paiement (montant encaissé 0 = bruit en base) : la facture porte le
+  statut et le solde, la trace (autorité + motif) voyage dans le
+  payload et s'imprime sur le reçu.
+
+### 16.5 Gaps backend constatés (négociation à prévoir)
+
+| Gap | Impact | Contournement actuel |
+|---|---|---|
+| POST /factures ne renvoie pas l'id créé | acomptes sans id direct | réconciliation (§16.3) — robuste mais un GET /factures par cycle |
+| Colonnes mutuelle / exonération / taux / référence absentes | audit partiel en base | extras dans le payload + trace imprimée sur le reçu |
+| `service_details.service_id = 0` | lignes « Unknown Service » dans GET /factures/one | montants intacts ; la résolution par référentiel d'actes est un gap à ouvrir |
+| Dédupe `X-Idempotence-Key` ignoré côté serveur | doublon possible si un POST 4xx-raté est réémis après correction | dédup UI par clé d'idempotence + visibilité du badge |
+| Ambiguïté de réconciliation (2 factures identiques même jour même patient) | appariement à la plus récente non appariée | cache rempli à la création : le premier appariement est quasi certain ; cas limite documenté |
+| `GET /patients?q=` (déjà §15.5) | — | filtrage local |
+
+### 16.6 Vérification des 3 clics (caisse, phase 3 incluse)
+
+1. **Totalité** : patient → cocher actes → « Payé totalité » → reçu —
+   3 interactions clavier/souris après sélection patient.
+2. **Acompte** : patient → « Acompte… » (montant pré-rempli) → OK — 2
+   clics ; régler un solde existant : bandeau → « Régler / compléter »
+   → OK — 2 clics.
+3. **Urgence vitale** : patient → « Urgence vitale… » → motif +
+   autorité → « Autoriser la prise en charge » — jamais bloqué par le
+   paiement (arrêté n°1250/2025), trace complète, badge « Prise en
+   charge autorisée ».

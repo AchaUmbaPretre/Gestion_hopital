@@ -134,16 +134,52 @@ Remplace : `pages/patient/*` (liste, formulaire). Branchement : `GET/POST /patie
 patient en < 30 s (2 champs requis, le reste modifiable) — le POST part
 via l'outbox sans jamais bloquer l'agent.
 
-## Phase 3 — Caisse & facturation (bidevise, mutuelles, exonérations)
+## Phase 3 — Caisse & facturation (bidevise, mutuelles, exonérations) — ✅ FAIT
 
 Remplace : `pages/factures/*`, `pages/paiement/*`. Branchement : `POST /factures` + `insertFactureDetails` + `POST /paiement`.
 
-1. Le panier d'actes alimente `factures` + `facture_details` ; chaque encaissement → `paiements` (`methode_paiement` : Espèces FC / Espèces USD / Mobile money).
-2. Acomptes = plusieurs `paiements` sur la même facture ; solde calculé côté UI + affiché.
-3. Mutuelle / exonération / urgence vitale : **dans l'attente des colonnes backend** (voir §Gaps), les traces restent dans la file offline locale ET imprimées sur le reçu — zéro perte d'information.
-4. Recus numérotés `REC-ANNÉE-N°` ; file d'impression locale si imprimante hors ligne.
+**État : livré (commit « phase 3 RDC »). Détail complet dans RDC_BUSINESS_LOGIC.md §16.**
 
-Critères : encaissement totalité en 3 clics ; reçu A4 imprimé immédiatement ; traces exonération/urgence exportables (audit).
+1. ✅ **Payloads calibrés sur le backend réel** (`services/facturationApi.ts`) :
+   le panier d'actes alimente `factures` + `facture_details` via
+   `service_details` **snake_case** (piège du contrôleur vérifié dans
+   `factures.model.js`) ; statuts RDC (`Payée` / `Partielle` /
+   `Exonérée` / `En attente`) alignés sur les conventions de l'écran
+   hérité ; chaque encaissement → `paiements` (`methode_paiement` :
+   `especes_fc` / `especes_usd` / `mobile_money`, `transaction_id` =
+   référence du reçu local, trace croisée).
+2. ✅ **Acomptes multiples** : `ajouterAcompte()` (store) déduit du
+   solde de la facture d'origine et n'émet qu'une ligne `paiements`
+   (JAMAIS une seconde facture) ; l'écran Caisse affiche le bandeau
+   « Solde en cours » + bouton « Régler / compléter ce paiement »
+   (dépose d'acompte à l'admission, solde réglé à la sortie).
+3. ✅ **Réconciliation des ids** (POST /factures ne renvoie pas d'id) :
+   `offline/envoiMetier.ts` résout à l'envoi l'id serveur du patient
+   (numérique direct ou correspondance par identité sur GET
+   /api/patient) puis l'id serveur de la facture (cache IndexedDB
+   `map_facture:<référence>` + correspondance patient+montant+date en
+   exclusion des ids déjà appariés). Un prérequis manquant →
+   `ErreurAttente` : l'entry attend le prochain cycle SANS consommer
+   d'essai (jamais de paiement orphelin, jamais de bascule en échec
+   pour une question d'ordre).
+4. ✅ **Mutuelle / exonération / urgence vitale** : dans l'attente des
+   colonnes backend (voir §Gaps), les traces voyagent DANS le payload
+   (`part_mutuelle`, `ticket_moderateur`, `mutuelle`, `motif_exoneration`,
+   `autorise_par`, `taux_fc_usd`) et restent imprimées sur le reçu —
+   zéro perte d'information. Exonération / urgence vitale ne créent
+   PAS de ligne de paiement (montant 0 = bruit).
+5. ✅ **Historique 360° enrichi** : les encaissements serveurs
+   (GET /api/paiement) sont joints aux factures (`Payé X $ sur Y $`,
+   acomptes compris) — `Promise.allSettled` à 3 endpoints : un en panne
+   ne coupe pas tout.
+6. ✅ **Reçus** numérotés `REC-ANNÉE-N°` (déjà en place), variante
+   « Acompte — facture REC-… » imprimée sans re-détail des actes ;
+   synchronisation immédiate déclenchée après chaque encaissement
+   (lancée en fire-and-forget, hors ligne l'outbox prend le relais).
+
+Critères : encaissement totalité en 3 clics ; reçu A4 imprimé
+immédiatement ; traces exonération/urgence exportables (audit) —
+tous les trois respectés (voir §11 de RDC_BUSINESS_LOGIC.md).
 
 ## Phase 4 — Consultation & ordonnances
 

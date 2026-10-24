@@ -153,16 +153,39 @@ export function enregistrerMutation(demande: DemandeMutation): Promise<void> {
 // ------------------------------------------------------------
 // Rejeu (synchronisation)
 // ------------------------------------------------------------
-export type FonctionEnvoi = (
-  methode: 'POST' | 'PUT',
-  endpoint: string,
-  payload: unknown,
-  cleIdempotence: string,
-) => Promise<void>;
+
+/**
+ * Le rejeu reçoit l'ENTRÉE COMPLÈTE (type métier compris) : certaines
+ * mutations exigent un traitement spécial avant l'envoi — la facture
+ * doit résoudre l'id serveur du patient, le paiement celui de la facture
+ * (réconciliation, phase 3 — voir offline/envoiMetier.ts).
+ */
+export type FonctionEnvoi = (entree: EntreeOutbox) => Promise<void>;
 
 export interface ResultatSync {
   envoyes: number;
   echecs: number;
+  /**
+   * Entrées remises en attente SANS consommer d'essai : leur prérequis
+   * n'est pas encore synchronisé (patient ou facture attendu) —
+   * ErreurAttente levée par l'envoi métier. Visibles dans le badge,
+   * rejouées au prochain cycle.
+   */
+  attendus: number;
+}
+
+/**
+ * Prérequis non encore résolu (ex. : le patient local n'est pas encore
+ * synchronisé, donc la facture ne peut pas porter son id serveur).
+ * NE COMPTE PAS comme un essai : l'entrée retourne en « en_attente »
+ * et sera rejouée au prochain cycle, sans jamais basculer en « echec »
+ * pour une simple question d'ordre de synchronisation.
+ */
+export class ErreurAttente extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ErreurAttente';
+  }
 }
 
 /** Erreur HTTP côté serveur avec statut identifiable (4xx/5xx). */
@@ -190,8 +213,8 @@ function erreurPermanente(erreur: unknown): boolean {
  * cibles « local » (gaps backend).
  */
 export async function synchroniser(envoi: FonctionEnvoi): Promise<ResultatSync> {
-  if (!db) return { envoyes: 0, echecs: 0 };
-  if (getInstantaneSync().enCours) return { envoyes: 0, echecs: 0 };
+  if (!db) return { envoyes: 0, echecs: 0, attendus: 0 };
+  if (getInstantaneSync().enCours) return { envoyes: 0, echecs: 0, attendus: 0 };
   majInstantane({ enCours: true });
   try {
     const lot = await db.outbox
@@ -202,6 +225,7 @@ export async function synchroniser(envoi: FonctionEnvoi): Promise<ResultatSync> 
 
     let envoyes = 0;
     let echecs = 0;
+    let attendus = 0;
 
     for (const entree of lot) {
       // Cible 'local' : gap backend — la trace reste en file, jamais envoyée.
@@ -210,10 +234,21 @@ export async function synchroniser(envoi: FonctionEnvoi): Promise<ResultatSync> 
 
       await db.outbox.update(entree.id, { statut: 'en_cours', dernierEssaiIso: new Date().toISOString() });
       try {
-        await envoi(entree.methode, entree.endpoint, entree.payload, entree.cleIdempotence);
+        await envoi(entree);
         await db.outbox.delete(entree.id);
         envoyes += 1;
       } catch (erreur: unknown) {
+        if (erreur instanceof ErreurAttente) {
+          // Prérequis pas encore synchronisé : retour en file SANS
+          // consommer d'essai — ce n'est ni une panne réseau ni un
+          // rejet métier, juste une question d'ordre.
+          attendus += 1;
+          await db.outbox.update(entree.id, {
+            statut: 'en_attente',
+            erreur: `en attente : ${erreur.message}`,
+          });
+          continue;
+        }
         echecs += 1;
         const echec = erreurPermanente(erreur) || entree.essais + 1 >= MAX_ESSAIS;
         await db.outbox.update(entree.id, {
@@ -232,7 +267,7 @@ export async function synchroniser(envoi: FonctionEnvoi): Promise<ResultatSync> 
     }
     majInstantane({ enCours: false, dernierSyncIso: horodatage });
     await rafraichirCompteurs();
-    return { envoyes, echecs };
+    return { envoyes, echecs, attendus };
   } finally {
     majInstantane({ enCours: false });
   }
