@@ -16,6 +16,7 @@ import type {
 import { seedRdcState } from './seed';
 import { enregistrerMutation } from '../../../offline/outbox';
 import { noterPatientRecent } from '../../../offline/db';
+import { construirePayloadCreationPatient } from '../../../services/patientsApi';
 
 const STORAGE_KEY = 'rdc.store.v1';
 const SCHEMA_VERSION = '1';
@@ -142,8 +143,18 @@ function noterRecent(patient: Patient): void {
   }).catch(() => undefined);
 }
 
-/** Création rapide : Nom + Prénom + Sexe + Âge estimé suffisent. */
-export function addPatient(input: NouveauPatient): Patient {
+/**
+ * Création rapide : Nom + Prénom + Sexe + Âge estimé suffisent.
+ * @param idTypePatientDefaut FK `typePatient` attendue par le POST
+ *        /api/patient (requis par le schéma MySQL) — fournie par
+ *        useTypesPatient (premier type exposé par l'API), null si
+ *        l'API n'en expose pas (le rejeu échouera alors visiblement :
+ *        statut « echec » du badge, trace conservée — zéro perte).
+ */
+export function addPatient(
+  input: NouveauPatient,
+  opts?: { idTypePatientDefaut?: number | null },
+): Patient {
   const { id, compteur } = genererDossier(input.nom, input.prenom, state.compteurDossier);
   const patient: Patient = {
     id,
@@ -154,11 +165,20 @@ export function addPatient(input: NouveauPatient): Patient {
     telephone: (input.telephone ?? '').trim(),
     exonere: false,
     refere: input.refere ?? false,
+    source: 'local',
     creeLe: new Date().toISOString(),
   };
   setState({ patients: [patient, ...state.patients], compteurDossier: compteur });
-  // Outbox : POST /patients existe (createPatient) — rejeu auto au retour réseau.
-  tracer('creer_patient', 'api', '/api/patient', { ...input, dossier: id }, `creer_patient:${patient.creeLe}:${id}`);
+  // Outbox : POST /patients existe (createPatient) — rejeu auto au
+  // retour réseau. Payload mappé sur les 15 colonnes MySQL réelles
+  // (+ extras RDC d'audit : dossier, âge estimé, statut référé).
+  tracer(
+    'creer_patient',
+    'api',
+    '/api/patient',
+    construirePayloadCreationPatient(input, id, opts?.idTypePatientDefaut ?? null),
+    `creer_patient:${patient.creeLe}:${id}`,
+  );
   noterRecent(patient);
   return patient;
 }

@@ -518,3 +518,46 @@
   gap: var(--space-3);
   margin-top: var(--space-4);
 }
+
+// ---------- Historique des passages (fiche 360°, phase 2) ----------
+.listePassages {
+  list-style: none;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+}
+
+.passageItem {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.passageDate {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-secondary);
+  min-width: 96px;
+}
+
+.passageCorps {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1 1 240px;
+}
+
+.passageLibelle {
+  font-weight: var(--font-weight-semibold);
+}
+
+.passageType {
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-secondary);
+}

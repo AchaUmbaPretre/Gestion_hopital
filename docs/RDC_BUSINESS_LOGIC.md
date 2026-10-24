@@ -276,3 +276,74 @@ Le prototype tourne sur un store local mocké ; chaque action correspond à un e
 25 suites / 120 tests verts, dont 15 nouveaux : mise en file + compteurs, dédup
 par idempotence, rejeu réussi, 4xx → « echec » (pas de boucle), erreur réseau →
 rejeu différé, cible `local` jamais envoyée, LRU patients récents plafonné à 200.
+
+## 15. Branchement API réelle — patients (phase 2)
+
+> `api_hopital` reste **gelé** : cette phase adapte le front aux endpoints
+> existants. Nouvelles suites : `src/services/patientsApi.test.ts` +
+> `src/pages/rdc/data/usePatients.test.ts` — 27 suites / 148 tests verts.
+
+### 15.1 Endpoints consommés (sans modification backend)
+
+| Besoin | Endpoint existant | Limite acceptée |
+|---|---|---|
+| Liste de travail | `GET /api/patient` | **pas de param de recherche serveur** → filtrage local instantané sans accents (gap « param q » ajouté à la liste des gaps pour les gros volumes) |
+| Types de patient (FK du POST) | `GET /api/patient/type` | sert de valeur par défaut du formulaire rapide |
+| Historique factures | `GET /api/factures` | filtrage client par `patient_id` |
+| Historique consultations | `GET /api/consult` | filtrage client par `patientId` |
+| Création | `POST /api/patient` | via **outbox** (jamais de POST direct), payload mappé sur les 15 colonnes destructurées par le contrôleur |
+
+### 15.2 Architecture de données (offline-first inchangée)
+
+1. **Le store local reste la source de vérité de la journée** : rendu
+   instantané, fonctionne 100 % hors ligne, alimente l'outbox.
+2. La liste serveur arrive via **React Query** (`['rdc','patients']`,
+   staleTime 5 min, retry `false` — axios a déjà re-joué ×3) et est
+   **fusionnée** avec le store : dédup par identité (nom + prénom
+   normalisés sans accents + 9 derniers chiffres du téléphone).
+3. **Le patient LOCAL gagne le doublon** : il porte le dossier imprimable
+   INIT-ANNÉE-N°, les actes du jour et les statuts mutuelle/exonération
+   saisis localement. Aucun doublon visible à l'écran après sync.
+4. Cache HTTP NetworkFirst du Service Worker (phase 1) + cache React
+   Query : la liste reste consultable hors ligne sans configuration
+   supplémentaire ; le champ `source: 'api' | 'local'` distingue l'origine.
+
+### 15.3 Création rapide branchée
+
+- Création = écriture locale immédiate (≤ 30 s garanti, même hors ligne)
+  + trace outbox `creer_patient` cible `api` → **rejeu immédiat si en
+  ligne** (`lancerSynchronisation()`), sinon au retour réseau.
+- Payload : les 15 colonnes MySQL (`nom_patient`, `prenom`,
+  `dateNaissance`, `lieuNaissance`, `sexe`, `province`, `adresse`, `tel`,
+  `email`, `societePatient`, `assurance`, `profession`, `typePatient`,
+  `groupeSanguin`, `img`) + extras RDC d'audit (`dossier`, `age_estime`,
+  `refere`, `source`) — ignorés par le backend actuel, prêts pour les
+  colonnes à venir.
+- **`dateNaissance` APPROCHÉE** (1er janvier de l'année déduite de l'âge
+  estimé) : satisfait la colonne NOT NULL sans inventer une DDN
+  vérifiée — l'âge estimé reste la référence affichée (réalité RDC).
+- **`typePatient`** : premier type exposé par `GET /api/patient/type`,
+  null si l'API est injoignable (le rejeu échouera alors visiblement :
+  badge « échec », trace conservée — zéro perte, réglage manuel).
+
+### 15.4 Fiche 360° — historique des passages
+
+- **Actes du jour (store local)** : caisse (avec mention « Urgence
+  vitale — paiement différé » et solde dû), ordonnances (statut
+  pharmacie), triages (niveau + urgence vitale) — toujours disponibles.
+- **Historique serveur** : consultations (type, médecin, prix) +
+  factures (n°, statut, montant) filtrés par patient. `Promise.allSettled` :
+  un endpoint en panne ne prive pas le soignant de tout l'historique.
+- Les patients créés hors ligne (dossier INIT-ANNÉE-N°) n'interrogent
+  pas le serveur (id non numérique) : leur historique jour est déjà
+  couvert par le store — ils apparaîtront côté serveur après sync.
+- Affichage bicolonne FC/USD (MoneyDual), 20 passages max, bandeau
+  explicite si serveur injoignable (+ bouton Réessayer).
+
+### 15.5 Nouveaux gaps backend constatés (négociation à prévoir)
+
+| Gap | Pourquoi |
+|---|---|
+| `GET /patients?q=` | le filtrage serveur deviendra nécessaire au-delà de quelques milliers de patients (la liste complète transite aujourd'hui) |
+| Colonne `dossier` | le dossier INIT-ANNÉE-N° reste généré côté front ; sans colonne, l'ID MySQL (numérique) s'affiche pour les fiches serveur |
+| Dédupe serveur par `X-Idempotence-Key` | le backend actuel l'ignore : un rejeu après 4xx réussi peut créer un doublon physique (limité par la dédup UI) |

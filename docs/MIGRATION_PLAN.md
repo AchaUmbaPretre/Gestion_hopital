@@ -41,7 +41,8 @@
 | Shell applicatif | ✅ livré (Sidebar rôles, TopBar, ⌘K, layouts, router lazy, main 158 KB gzip vs 696 KB) | ⌘K retiré en phase 1 ; sidebar simplifiée en phase 7 |
 | DataTable + Form system | ✅ livrés | réutilisés par les modules |
 | **Prototype RDC** | ✅ **livré (phase 0)** : `typography.scss` + 5 écrans cœur sous `/rdc/*` + docs/RDC_BUSINESS_LOGIC.md | validation terrain avant bascule |
-| **Offline (phase 1)** | ✅ **livré** : SW Workbox (precache + cache API + Background Sync), Dexie (outbox + patients récents), moteur de sync, axios durcé (8 s / retry ×3), badge « en attente de synchronisation » | branchement API réelle phase 2 |
+| **Offline (phase 1)** | ✅ **livré** : SW Workbox (precache + cache API + Background Sync), Dexie (outbox + patients récents), moteur de sync, axios durcé (8 s / retry ×3), badge « en attente de synchronisation » | branchement API réelle phase 2 ✅ |
+| **Patients (phase 2)** | ✅ **livré** : liste fusionnée local ∪ serveur (dédup identité sans accents/téléphone), création via outbox (payload 15 colonnes MySQL + extras audit), fiche 360° avec historique des passages, carnet sur données réelles | validation terrain 3 clics / 3G |
 | Backend | gelé ; patients/médicaments/factures/paiements branchables ; gaps mutuelle/exonération/triage/bidevise/seuils | voir §Gaps backend |
 
 ## Phase 0 — Prototype des 5 écrans cœur RDC ✅ (FAIT)
@@ -95,16 +96,43 @@ outbox se rejoue automatiquement au retour du réseau (25 suites / 120 tests ver
 dont 15 nouveaux tests offline : dédup idempotence, 4xx → echec, réseau → rejeu,
 cible local jamais envoyée, LRU 200).
 
-## Phase 2 — Parcours patient (branchement API réelle)
+## Phase 2 — Parcours patient (branchement API réelle) ✅ (FAIT)
 
 Remplace : `pages/patient/*` (liste, formulaire). Branchement : `GET/POST /patients` existants.
 
-1. Recherche serveur (param `q` nom/prénom/tél/dossier) avec cache React Query + filtre local instantané.
-2. Création rapide → `POST /patients` (âge estimé conservé côté UI ; `dateNaissance` optionnelle).
-3. Fiche 360° minimaliste RDC : identité, mutuelle, exonération, historique des passages (consultations + factures existantes).
-4. Impression carnet branchée sur les données réelles.
+1. [x] **Liste de travail fusionnée** : `GET /api/patient` (React Query,
+   staleTime 5 min, retry false — axios a déjà re-joué ×3) **fusionnée**
+   avec le store local de la journée ; dédup par identité (nom + prénom
+   normalisés sans accents + 9 derniers chiffres du téléphone), le
+   patient LOCAL gagne (dossier imprimable + actes du jour). Le filtrage
+   reste local instantané : le backend n'expose pas de param `q`
+   (gap documenté §Gaps + RDC_BUSINESS_LOGIC §15.5).
+2. [x] **Création rapide → POST /api/patient via l'outbox** (jamais de
+   POST direct) : écriture locale immédiate (≤ 30 s garanti hors ligne),
+   trace `creer_patient` cible `api`, **rejeu immédiat si en ligne** ;
+   payload mappé sur les 15 colonnes MySQL du contrôleur + extras RDC
+   d'audit (dossier, âge estimé, référé) ; `dateNaissance` approchée
+   (1er janvier de l'année déduite de l'âge estimé — colonne NOT NULL
+   sans inventer de DDN) ; `typePatient` = premier type exposé par
+   `GET /api/patient/type` (valeur par défaut, null si API injoignable).
+3. [x] **Fiche 360° minimaliste RDC** : identité, mutuelle, exonération +
+   **historique des passages** — actes du jour (caisse/ordonnances/
+   triages du store, disponibles hors ligne, urgence vitale tracée) +
+   consultations et factures serveur filtrées par patient
+   (`Promise.allSettled` : un endpoint en panne ne coupe pas tout) ;
+   montants bicolonne FC/USD ; bandeau explicite + Réessayer si serveur
+   injoignable.
+4. [x] **Impression carnet branchée sur les données réelles** : la fiche
+   carnet A4 consomme le patient mappé (serveur ou local) sans
+   modification du gabarit.
+5. [x] **Tests** : `patientsApi.test.ts` + `usePatients.test.ts` (lecture
+   défensive MySQL, mapping, filtrage historique, payload, fusion/dédup,
+   passages locaux) — 27 suites / 148 tests verts, zéro régression.
 
-Critères : retrouver un patient connu en ≤ 3 clics / < 2 s sur 3G ; création d'un nouveau patient en < 30 s.
+**Critères** : retrouver un patient connu en ≤ 3 clics / < 2 s sur 3G
+(rendu instantané local + cache SW NetworkFirst) ; création d'un nouveau
+patient en < 30 s (2 champs requis, le reste modifiable) — le POST part
+via l'outbox sans jamais bloquer l'agent.
 
 ## Phase 3 — Caisse & facturation (bidevise, mutuelles, exonérations)
 
@@ -169,6 +197,8 @@ Remplace : `pages/admission/*`, `pages/traitement/*`, `pages/rdv/*`.
 | Triage 4 niveaux | table `triage` (niveau, motif, orientation, urgence_vitale) |
 | Alternatives thérapeutiques | colonne `classe_therepeutique` + `seuil` sur `medicament` |
 | Référence patient RDC | colonne `dossier` (INIT-ANNÉE-N°) sur `patient` |
+| Recherche serveur patients | param `q` sur `GET /patients` (filtrage local aujourd'hui — nécessaire au-delà de quelques milliers de patients, voir RDC_BUSINESS_LOGIC §15.5) |
+| Dédupe des rejeux | lecture de `X-Idempotence-Key` côté serveur (l'en-tête est déjà envoyé par le moteur de sync ; le dédupe UI limite déjà les doublons) |
 
 ## Journal des dépendances — justifié
 

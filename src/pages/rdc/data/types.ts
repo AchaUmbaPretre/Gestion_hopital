@@ -56,6 +56,13 @@ export interface Patient {
   exonere: boolean;
   /** Patient référé par un centre de santé ? */
   refere: boolean;
+  /**
+   * Origine de la fiche :
+   *  - 'api'   : venu de api_hopital (id numérique MySQL) ;
+   *  - 'local' : créé sur ce poste (dossier INIT-ANNÉE-N°), sera
+   *              poussé par l'outbox — absent = prototype antérieur.
+   */
+  source?: 'api' | 'local';
   creeLe: string; // ISO
 }
 

@@ -168,10 +168,17 @@ export function RecherchePatient({
 // ------------------------------------------------------------
 export function FormulaireCreationRapide({
   requeteInitiale,
+  typePatientDefaut,
   onCree,
   onAnnule,
 }: {
   requeteInitiale: string;
+  /**
+   * FK `typePatient` du POST /api/patient (requis par le schéma
+   * MySQL) — premier type exposé par GET /api/patient/type, null si
+   * l'API est injoignable (le rejeu échouera alors visiblement).
+   */
+  typePatientDefaut?: number | null;
   onCree: (p: Patient) => void;
   onAnnule: () => void;
 }) {
@@ -224,7 +231,7 @@ export function FormulaireCreationRapide({
         </label>
       </div>
       <div className={styles.actionsBas}>
-        <Button type="primary" size="large" disabled={!valide} onClick={() => onCree(addPatient({ nom, prenom, sexe, ageEstime: age, telephone }))}>
+        <Button type="primary" size="large" disabled={!valide} onClick={() => onCree(addPatient({ nom, prenom, sexe, ageEstime: age, telephone }, { idTypePatientDefaut: typePatientDefaut ?? null }))}>
           Créer le patient
         </Button>
         <Button size="large" onClick={onAnnule}>Annuler</Button>
