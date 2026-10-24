@@ -7,6 +7,9 @@
 @use 'primitive';
 @use 'semantic';
 @use 'component';
+// Tokens RDC (triage 4 niveaux, indicateur réseau, états de sync) —
+// phase 1 du plan de migration RDC.
+@use 'rdc';
 
 // ------------------------------------------------------------
 // GARDE-FOU ACCESSIBILITÉ — prefers-reduced-motion

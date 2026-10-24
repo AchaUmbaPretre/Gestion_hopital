@@ -41,8 +41,8 @@
 | Shell applicatif | ✅ livré (Sidebar rôles, TopBar, ⌘K, layouts, router lazy, main 158 KB gzip vs 696 KB) | ⌘K retiré en phase 1 ; sidebar simplifiée en phase 7 |
 | DataTable + Form system | ✅ livrés | réutilisés par les modules |
 | **Prototype RDC** | ✅ **livré (phase 0)** : `typography.scss` + 5 écrans cœur sous `/rdc/*` + docs/RDC_BUSINESS_LOGIC.md | validation terrain avant bascule |
+| **Offline (phase 1)** | ✅ **livré** : SW Workbox (precache + cache API + Background Sync), Dexie (outbox + patients récents), moteur de sync, axios durcé (8 s / retry ×3), badge « en attente de synchronisation » | branchement API réelle phase 2 |
 | Backend | gelé ; patients/médicaments/factures/paiements branchables ; gaps mutuelle/exonération/triage/bidevise/seuils | voir §Gaps backend |
-| Offline | auto-save localStorage + store persisté (prototype) | Workbox + IndexedDB en phase 1 |
 
 ## Phase 0 — Prototype des 5 écrans cœur RDC ✅ (FAIT)
 
@@ -56,15 +56,44 @@
 
 **Règle de validation** : faire tourner le prototype avec le personnel (secrétaire, caissier, infirmier) avant toute bascule — chaque écran doit passer le test « 3 clics / 30 s » et le test 3G simulé (throttling Chrome DevTools).
 
-## Phase 1 — Fondations techniques RDC (offline & réseau)
+## Phase 1 — Fondations techniques RDC (offline & réseau) ✅ (FAIT)
 
-1. **PWA offline-first** : Workbox (precache app shell + runtime cache API), manifest, IndexedDB via **Dexie** (patients récents, files d'attente, brouillons), **Background Sync** pour les mutations en attente (file d'écriture différée avec statut « en attente de synchronisation »).
-2. **Résilience réseau** : interceptor axios — timeout 8 s, retry ×3 backoff exponentiel, compression activée ; batch de requêtes (10 patients/requête).
-3. **Data layer** : React Query pour TOUT le server state (keys `['patients','list',filters]`, `['patient',id]`, `['stock']`) ; le store mock RDC devient un adapter Dexie/React Query **sans changer les écrans**.
-4. **Retrait ⌘K** + simplification de la navigation (boutons géants de l'accueil = hub).
-5. Consolidation tokens : variables RDC (bidevise, triage) dans `design-system/tokens/`.
+1. [x] **PWA offline-first** : Service Worker (`src/service-worker.ts`, compilé par
+   WorkboxWebpackPlugin.InjectManifest de CRA 5) — précache de l'app shell complet,
+   `NavigationRoute` vers index.html, runtime cache des GET `/api/*` en **NetworkFirst**
+   (timeout 8 s, cache `rdc-api-v1`, expiration 7 jours / 300 entrées,
+   `purgeOnQuotaError`) ; manifest.json RDC (nom, lang fr, standalone, theme #2563EB) ;
+   enregistrement en production uniquement (`serviceWorkerRegistration.ts`, SKIP_WAITING).
+2. [x] **File d'écriture différée (outbox)** : IndexedDB via **Dexie 4**
+   (`src/offline/db.ts` — tables `outbox` / `patients_recent` LRU 200 / `meta`) ;
+   chaque action du store RDC trace sa mutation (`src/pages/rdc/data/rdcStore.ts`) :
+   cible `api` (endpoints existants : patients, ordonnance, factures, paiement) →
+   rejeu automatique ; cible `local` (gaps backend : triage, mutuelle, exonération,
+   stocks) → trace conservée + imprimée, JAMAIS perdue, jamais envoyée prématurément.
+3. [x] **Moteur de synchronisation** (`src/offline/syncEngine.ts`) : rejeu au retour
+   réseau, au message `RDC_SYNC` du SW (**Background Sync**, tag `rdc-outbox-sync`),
+   au démarrage (+2,5 s) et par sondage 60 s ; lots de 50, clé d'idempotence par
+   mutation (`X-Idempotence-Key`), 4xx → statut « echec » (action manuelle visible),
+   réseau/5xx → rejeu ultérieur, max 10 essais.
+4. [x] **Résilience axios** (`src/services/resilience.ts`) : timeout **8 s**, retry
+   **×3 backoff exponentiel** (1 s / 2 s / 4 s), rejeu limité aux méthodes sûres
+   (GET/HEAD) et aux erreurs transitoires (réseau, timeout, 5xx, 429, 408) — un
+   POST n'est JAMAIS re-joué aveuglément (les mutations passent par l'outbox).
+   Branché sur le client global (`installerResilienceGlobale`) et sur `userRequest`.
+5. [x] **Statut visible** : badge `SyncBadge` (TopBar + en-tête des 5 écrans RDC) :
+   « N en attente de synchronisation » (clic = sync immédiate), « Synchronisation… »,
+   « N échec(s) » — le personnel voit toujours ce qui attend le réseau.
+6. [x] **Retrait ⌘K** : CommandPalette supprimée, déclencheur remplacé par un bouton
+   VISIBLE « Rechercher un patient » (→ `/rdc/patients`) ; QUICK_ACTIONS retirées ;
+   `/` = accueil RDC (hub 3 boutons), ancien dashboard conservé sur `/dashboard`.
+7. [x] **Consolidation tokens** : `design-system/tokens/rdc.scss` (triage 4 niveaux,
+   indicateur réseau, états de sync) — consommés par `rdc.module.scss` et SyncBadge.
 
-Backend requis : aucun. Risque : IndexedDB quota — mitigation : LRU sur patients récents. Acceptation : l'app démarre et permet triage + consultation + facturation **100 % hors ligne** ; resynchronisation automatique au retour du réseau.
+**Critères d'acceptation** : ✅ l'app démarre et permet triage + consultation +
+facturation 100 % hors ligne (store local persistant + précache SW) ; la file
+outbox se rejoue automatiquement au retour du réseau (25 suites / 120 tests verts,
+dont 15 nouveaux tests offline : dédup idempotence, 4xx → echec, réseau → rejeu,
+cible local jamais envoyée, LRU 200).
 
 ## Phase 2 — Parcours patient (branchement API réelle)
 
@@ -149,8 +178,9 @@ Remplace : `pages/admission/*`, `pages/traitement/*`, `pages/rdv/*`.
 | @fontsource/inter + jetbrains-mono | ~90 KB woff2 | Auto-hébergé offline (aucun CDN) | ✅ installé |
 | @tanstack/react-query | ~13 KB gzip | Server state + offline cache | ✅ installé |
 | react-window | ~6 KB gzip | Listes longues | ✅ installé |
-| workbox-* | ~12 KB gzip runtime | PWA offline-first (phase 1) | à installer phase 1 |
-| dexie (+ dexie-react-hooks) | ~25 KB gzip | IndexedDB mutations/patients récents (phase 1) | à installer phase 1 |
+| workbox-* 7.4.1 | ~12 KB gzip runtime | PWA offline-first (InjectManifest CRA5) | ✅ installé (phase 1) |
+| dexie 4.4 | ~25 KB gzip | IndexedDB : outbox + patients récents (phase 1) | ✅ installé |
+| fake-indexeddb | dev only | Tests Dexie sous jest (jsdom) | ✅ installé (phase 1) |
 | @playwright/test | dev only | E2E parcours critiques (phase 7) | à installer phase 7 |
 
 Écartées : toute lib UI concurrente d'Ant Design ; Chart.js conservé uniquement si les statistiques restent demandées ; framer-motion conservé pour transitions sobres (retrait possible si poids jugé inutile terrain).

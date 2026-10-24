@@ -15,6 +15,7 @@ import { formatFc, usdToFc } from './data/money';
 import type { Medicament, Patient } from './data/types';
 import { statutStock, type StatutStock } from './data/rdcStore';
 import { useOnlineStatus, type StatutConnexion } from './hooks';
+import { SyncBadge } from '../../offline/SyncBadge';
 
 // ------------------------------------------------------------
 // Debounce 250 ms (brief RDC 3.2 — recherche instantanée)
@@ -61,6 +62,10 @@ export function EnTeteRDC({
       </div>
       <div className={styles.spacer} />
       {actions}
+      {/* File d'écriture différée : N en attente / échecs — visible
+          en permanence (brief RDC 4.1 : « statut en attente de
+          synchronisation », jamais de perte silencieuse). */}
+      <SyncBadge />
       <StatutConnexionBadge />
       <Button onClick={() => navigate('/rdc')}>Accueil</Button>
     </header>

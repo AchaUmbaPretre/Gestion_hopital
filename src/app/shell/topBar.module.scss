@@ -57,21 +57,6 @@
   text-overflow: ellipsis;
 }
 
-.kbd {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 2px 6px;
-  border: 1px solid var(--color-border-default);
-  border-bottom-width: 2px;
-  border-radius: var(--radius-xs);
-  background-color: var(--color-bg-surface);
-  font-family: var(--font-family-mono);
-  font-size: var(--font-size-overline);
-  color: var(--color-text-tertiary);
-  flex-shrink: 0;
-}
-
 @media (max-width: 640px) {
   .searchPlaceholder {
     // Sur mobile : placeholder court, la fiche reste lisible

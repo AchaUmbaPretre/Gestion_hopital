@@ -69,7 +69,11 @@ export function AppRouter() {
       path: '/',
       element: <RequireAuth><AppShell /></RequireAuth>,
       children: [
-        { index: true, element: lazyPage(RightBar) },
+        // Phase 1 RDC : l'ACCUEIL = hub des 3 boutons géants (brief
+        // RDC 3.1). L'ancien dashboard reste accessible sur /dashboard
+        // (cohabitation, retrait décidé en phase 7).
+        { index: true, element: lazyPage(AccueilRDC) },
+        { path: 'dashboard', element: lazyPage(RightBar) },
         { path: 'form_personnel', element: lazyPage(DocteurForm) },
         { path: 'liste_docteur', element: lazyPage(ListeDocteur) },
         { path: 'form_user', element: lazyPage(Utilisateur) },

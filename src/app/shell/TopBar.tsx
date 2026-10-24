@@ -1,7 +1,10 @@
 /**
  * TopBar — organisme d'en-tête (remplace TopBar.jsx antd).
- * Contenu : hamburger (mobile), déclencheur de recherche ⌘K,
- * bascule de thème, cloche NotificationCenter, menu utilisateur
+ * Contenu : hamburger (mobile), bouton VISIBLE « Rechercher un
+ * patient » (le ⌘K est RETIRÉ en phase 1 RDC — un raccourci clavier
+ * n'existe pas pour le personnel ; la recherche patient unique est
+ * le point d'entrée), badge de synchronisation offline, bascule de
+ * thème, cloche NotificationCenter, menu utilisateur
  * (thème clair/sombre/auto + déconnexion avec ConfirmDialog).
  * Déconnexion : parité avec l'ancien flux (purge persist + reload).
  */
@@ -10,10 +13,10 @@ import { useNavigate } from 'react-router-dom';
 import { Avatar, Button, IconButton } from '../../design-system/components/atoms';
 import { ConfirmDialog } from '../../design-system/components/molecules/ConfirmDialog/ConfirmDialog';
 import { useToast } from '../../design-system/components/molecules/Toast/Toast';
+import { SyncBadge } from '../../offline/SyncBadge';
 import {
   BellIcon,
   ChevronDownIcon,
-  CommandIcon,
   LogOutIcon,
   MenuIcon,
   MoonIcon,
@@ -21,7 +24,6 @@ import {
   SunIcon,
 } from '../../design-system/foundation/icons';
 import { useTheme, type ThemePreference } from '../providers/ThemeProvider';
-import { useCommandPalette } from './CommandPalette';
 import { logout } from '../../services/authService';
 import { NotificationCenter } from './NotificationCenter';
 import { useDismiss } from '../../shared/hooks';
@@ -42,7 +44,6 @@ export const TopBar = ({ user, onOpenDrawer }: TopBarProps) => {
   const navigate = useNavigate();
   const toast = useToast();
   const { preference, resolvedTheme, setPreference } = useTheme();
-  const { setOpen: setPaletteOpen } = useCommandPalette();
 
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -95,18 +96,16 @@ export const TopBar = ({ user, onOpenDrawer }: TopBarProps) => {
       <button
         type="button"
         className={styles.searchTrigger}
-        onClick={() => setPaletteOpen(true)}
-        aria-keyshortcuts="Control+K Meta+K"
-        aria-label="Rechercher (Ctrl+K)"
+        onClick={() => navigate('/rdc/patients')}
+        aria-label="Rechercher un patient"
       >
         <SearchIcon size={16} />
-        <span className={styles.searchPlaceholder}>Rechercher un patient, un médecin, une facture…</span>
-        <kbd className={styles.kbd} aria-hidden="true">
-          <CommandIcon size={11} />K
-        </kbd>
+        <span className={styles.searchPlaceholder}>Rechercher un patient (nom, téléphone, n° dossier)…</span>
       </button>
 
       <div className={styles.actions}>
+        {/* File offline : N en attente / échecs — visible en permanence. */}
+        <SyncBadge />
         <IconButton
           variant="ghost"
           label={isDark ? 'Passer en thème clair' : 'Passer en thème sombre'}

@@ -26,3 +26,10 @@ beforeEach(() => {
 // Aucune implémentation nécessaire : resetMocks n'affecte pas le
 // comportement "no-op" attendu.
 Element.prototype.scrollIntoView = jest.fn();
+
+// structuredClone — absent de l'environnement jsdom de jest (les
+// données de test sont JSON-safe : objets simples, chaînes, nombres).
+// Requis par fake-indexeddb pour les tests de l'outbox Dexie (offline).
+if (typeof globalThis.structuredClone !== 'function') {
+  globalThis.structuredClone = (value) => JSON.parse(JSON.stringify(value));
+}

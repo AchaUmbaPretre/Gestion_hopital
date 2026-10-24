@@ -241,3 +241,38 @@ Le prototype tourne sur un store local mocké ; chaque action correspond à un e
 - ❌ Progressive disclosure poussé → sections pliables **ouvertes par défaut** sur les infos courantes (Motif, Prescriptions).
 - ❌ Intégrations email/SMS → champ « Téléphone » uniquement.
 - ❌ Animations gadget → transitions ≤ 150 ms, sobres, `prefers-reduced-motion` respecté.
+
+## 14. Infrastructure offline livrée (phase 1 — brief Partie 4)
+
+> Implémentation concrète de la résilience : coupures réseau (connexion ~32 %)
+> ET coupures d'électricité. **Aucune écriture métier n'est jamais perdue.**
+
+### 14.1 Persistance et Service Worker
+
+| Couche | Rôle |
+|---|---|
+| Store local (localStorage) | État métier du prototype : patients, triages, ordonnances, mouvements de caisse — survit aux coupures (déjà phase 0). |
+| **IndexedDB / Dexie** (`src/offline/db.ts`) | `outbox` (file d'écriture différée), `patients_recent` (LRU 200 — base du cache React Query phase 2), `meta`. |
+| **Service Worker** (`src/service-worker.ts`) | Précache de l'app shell complet (l'app démarre sans réseau) ; GET `/api/*` en **NetworkFirst** (timeout 8 s, cache 7 j, purge sur quota) — un dossier déjà consulté reste consultable hors ligne. |
+
+### 14.2 File d'écriture différée (outbox) — règles
+
+1. Chaque action métier trace une mutation avec **clé d'idempotence** (déduplication).
+2. Cible **`api`** (endpoints existants : `POST /patients`, `/ordonnance`, `/factures`, `/paiement`) → rejeu automatique.
+3. Cible **`local`** (gaps backend : triage, mutuelle, exonération, décrément stock, vente directe) → trace conservée en file + imprimée sur les documents — **zéro perte d'information**, rejeu dès que le backend expose l'endpoint.
+4. Rejeu déclenché par : retour du réseau, **Background Sync** (même onglet fermé), démarrage, sondage 60 s. Lots de 50 ; en-tête `X-Idempotence-Key` pour dédupliquer côté serveur.
+5. Statuts visibles (badge permanent TopBar + en-têtes RDC) : « N en attente de synchronisation » (orange), « Synchronisation… » (bleu), « N échec(s) » (rouge — rejet serveur 4xx, action manuelle, jamais une boucle silencieuse).
+
+### 14.3 Résilience réseau axios (`src/services/resilience.ts`)
+
+- Timeout **8 s** (réseau HGR instable : ne pas faire attendre 2 min) ;
+- retry **×3 backoff exponentiel** (1 s / 2 s / 4 s) ;
+- rejeu **GET uniquement** et uniquement sur erreurs transitoires (réseau, timeout, 5xx, 429, 408) ;
+- **un POST n'est jamais re-joué aveuglément** : doubler un encaissement est inacceptable — les mutations passent par l'outbox avec clé d'idempotence ;
+- compression gzip/brotli : gérée par le navigateur (Accept-Encoding), rien à activer côté client.
+
+### 14.4 Frontière testée
+
+25 suites / 120 tests verts, dont 15 nouveaux : mise en file + compteurs, dédup
+par idempotence, rejeu réussi, 4xx → « echec » (pas de boucle), erreur réseau →
+rejeu différé, cible `local` jamais envoyée, LRU patients récents plafonné à 200.

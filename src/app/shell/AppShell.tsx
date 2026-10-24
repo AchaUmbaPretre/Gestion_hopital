@@ -14,7 +14,6 @@ import { MotionConfig } from 'framer-motion';
 import { useSelector } from 'react-redux';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
-import { CommandPaletteProvider } from './CommandPalette';
 import { PageTransition } from './PageTransition';
 import { PageFallback } from './PageFallback';
 import { useMediaQuery, usePersistentState, SIDEBAR_MEDIA_QUERY } from '../../shared/hooks';
@@ -63,7 +62,7 @@ export const AppShell = () => {
 
   return (
     <MotionConfig reducedMotion="user">
-      <CommandPaletteProvider userRole={user?.role}>{content}</CommandPaletteProvider>
+      {content}
     </MotionConfig>
   );
 };

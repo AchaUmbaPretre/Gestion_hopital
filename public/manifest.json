@@ -1,6 +1,7 @@
 {
-  "short_name": "React App",
-  "name": "Create React App Sample",
+  "short_name": "Hôpital",
+  "name": "Gestion Hôpital — HGR RDC",
+  "description": "Gestion hospitalière hors ligne : triage, patients, caisse FC/USD, consultation, pharmacie.",
   "icons": [
     {
       "src": "favicon.ico",
@@ -18,8 +19,13 @@
       "sizes": "512x512"
     }
   ],
-  "start_url": ".",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "theme_color": "#000000",
-  "background_color": "#ffffff"
+  "orientation": "any",
+  "lang": "fr",
+  "dir": "ltr",
+  "theme_color": "#2563EB",
+  "background_color": "#ffffff",
+  "categories": ["medical", "productivity"]
 }

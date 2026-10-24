@@ -1,0 +1,51 @@
+// ============================================================
+// SyncBadge — consomme les tokens RDC consolidés
+// (design-system/tokens/rdc.scss : --rdc-sync-*).
+// ============================================================
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-semibold);
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  border: 1px solid transparent;
+  cursor: default;
+  white-space: nowrap;
+
+  &:focus-visible {
+    outline: 3px solid var(--color-focus-ring);
+    outline-offset: 2px;
+  }
+}
+
+button.badge {
+  cursor: pointer;
+}
+
+.attente {
+  color: var(--rdc-sync-attente-texte);
+  border-color: var(--rdc-sync-attente-bord);
+  background: var(--rdc-sync-attente-fond);
+}
+
+.attenteHorsLigne {
+  color: var(--rdc-sync-attente-texte);
+  border-color: var(--rdc-sync-attente-bord);
+  background: var(--color-bg-surface);
+}
+
+.enCours {
+  color: var(--rdc-sync-cours-texte);
+  border-color: var(--rdc-sync-cours-bord);
+  background: var(--rdc-sync-cours-fond);
+}
+
+.echec {
+  color: var(--rdc-sync-echec-texte);
+  border-color: var(--rdc-sync-echec-bord);
+  background: var(--rdc-sync-echec-fond);
+}

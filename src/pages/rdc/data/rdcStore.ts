@@ -14,6 +14,8 @@ import type {
   Medicament, MouvementCaisse, Ordonnance, Patient, RdcState, Triage, LigneOrdonnance,
 } from './types';
 import { seedRdcState } from './seed';
+import { enregistrerMutation } from '../../../offline/outbox';
+import { noterPatientRecent } from '../../../offline/db';
 
 const STORAGE_KEY = 'rdc.store.v1';
 const SCHEMA_VERSION = '1';
@@ -112,6 +114,34 @@ export interface NouveauPatient {
   refere?: boolean;
 }
 
+/**
+ * Trace une mutation dans l'outbox offline (phase 1).
+ *  - cible 'api'   : endpoint existant dans api_hopital → rejeu auto.
+ *  - cible 'local' : gap backend documenté (doc RDC §12) → trace
+ *    conservée en file + imprimée, jamais envoyée tant que le gap
+ *    n'est pas comblé — zéro perte d'information.
+ * Fire-and-forget : JAMAIS bloquant pour l'action métier (un triage
+ * rouge s'enregistre même si IndexedDB est indisponible).
+ */
+function tracer(
+  type: string,
+  cible: 'api' | 'local',
+  endpoint: string | null,
+  payload: unknown,
+  cleIdempotence?: string,
+): void {
+  void enregistrerMutation({ type, cible, endpoint, payload, cleIdempotence }).catch(() => undefined);
+}
+
+function noterRecent(patient: Patient): void {
+  void noterPatientRecent({
+    patientId: patient.id,
+    nom: patient.nom,
+    prenom: patient.prenom,
+    consulteLe: new Date().toISOString(),
+  }).catch(() => undefined);
+}
+
 /** Création rapide : Nom + Prénom + Sexe + Âge estimé suffisent. */
 export function addPatient(input: NouveauPatient): Patient {
   const { id, compteur } = genererDossier(input.nom, input.prenom, state.compteurDossier);
@@ -127,6 +157,9 @@ export function addPatient(input: NouveauPatient): Patient {
     creeLe: new Date().toISOString(),
   };
   setState({ patients: [patient, ...state.patients], compteurDossier: compteur });
+  // Outbox : POST /patients existe (createPatient) — rejeu auto au retour réseau.
+  tracer('creer_patient', 'api', '/api/patient', { ...input, dossier: id }, `creer_patient:${patient.creeLe}:${id}`);
+  noterRecent(patient);
   return patient;
 }
 
@@ -134,6 +167,8 @@ export function updatePatient(id: string, patch: Partial<Omit<Patient, 'id'>>): 
   setState({
     patients: state.patients.map((p) => (p.id === id ? { ...p, ...patch } : p)),
   });
+  // Gap backend : pas d'endpoint de mise à jour patient → trace locale.
+  tracer('maj_patient', 'local', null, { id, patch });
 }
 
 export function addOrdonnance(o: Omit<Ordonnance, 'id'>): Ordonnance {
@@ -142,6 +177,10 @@ export function addOrdonnance(o: Omit<Ordonnance, 'id'>): Ordonnance {
     id: `ORD-${new Date().getFullYear()}-${String(state.ordonnances.length + 1).padStart(4, '0')}`,
   };
   setState({ ordonnances: [ordonnance, ...state.ordonnances] });
+  // Outbox : POST /ordonnance existe — rejeu auto (payload complet).
+  tracer('creer_ordonnance', 'api', '/api/ordonnance', ordonnance, `creer_ordonnance:${ordonnance.id}`);
+  const patientOrdo = state.patients.find((p) => p.id === ordonnance.patientId);
+  if (patientOrdo) noterRecent(patientOrdo);
   return ordonnance;
 }
 
@@ -151,6 +190,9 @@ export function addTriage(t: Omit<Triage, 'id'>): Triage {
     id: `TRI-${new Date().getFullYear()}-${String(state.triages.length + 1).padStart(4, '0')}`,
   };
   setState({ triages: [triage, ...state.triages] });
+  // Gap backend (table triage) : trace locale — imprimée sur la fiche
+  // urgence, jamais perdue. Rejeu dès que le backend expose l'endpoint.
+  tracer('creer_triage', 'local', null, triage, `creer_triage:${triage.id}`);
   return triage;
 }
 
@@ -161,6 +203,29 @@ export function registerMouvement(m: Omit<MouvementCaisse, 'id' | 'reference'>):
     mouvements: [mouvement, ...state.mouvements],
     compteurRecu: state.compteurRecu + 1,
   });
+  // Outbox : facture + paiement (deux endpoints existants). Les
+  // données sans slot backend (mutuelle, exonération, urgence vitale,
+  // taux) restent DANS le payload — zéro perte, audit possible.
+  tracer('creer_facture', 'api', '/api/factures', {
+    patient_id: mouvement.patientId,
+    reference: mouvement.reference,
+    lignes: mouvement.lignes,
+    total: mouvement.totalUsd,
+    part_mutuelle: mouvement.partMutuelleUsd,
+    ticket_moderateur: mouvement.ticketModerateurUsd,
+    mode: mouvement.mode,
+    motif_exoneration: mouvement.motifExoneration ?? null,
+    autorise_par: mouvement.autorisePar ?? null,
+    taux_fc_usd: mouvement.tauxFcUsd, // gap : à stocker côté backend
+  }, `creer_facture:${mouvement.id}`);
+  tracer('creer_paiement', 'api', '/api/paiement', {
+    id_facture: mouvement.reference,
+    amount: mouvement.montantPayeUsd,
+    methode_paiement: mouvement.modePaiement ?? 'especes_usd',
+    taux_fc_usd: mouvement.tauxFcUsd, // gap : à stocker côté backend
+  }, `creer_paiement:${mouvement.id}`);
+  const patientMvt = state.patients.find((p) => p.id === mouvement.patientId);
+  if (patientMvt) noterRecent(patientMvt);
   return mouvement;
 }
 
@@ -247,6 +312,9 @@ export function delivrerOrdonnance(
         : o,
     ),
   });
+  // Gap backend (décrément de stock) : trace locale + substitutions
+  // appliquées (audit pharmacie).
+  tracer('delivrer_ordonnance', 'local', null, { ordonnanceId, substitutions }, `delivrer_ordonnance:${ordonnanceId}`);
   return { ok: true, ruptures: [] };
 }
 
@@ -279,6 +347,8 @@ export function vendreDirecte(lignes: Array<{ medicamentId: string; quantite: nu
     if (med) stocks.set(l.medicamentId, { ...med, stock: med.stock - l.quantite });
   }
   setState({ medicaments: state.medicaments.map((m) => stocks.get(m.id) ?? m) });
+  // Gap backend (vente directe sans facture) : trace locale.
+  tracer('vente_directe', 'local', null, lignes);
   return { ok: true, ruptures: [] };
 }
 

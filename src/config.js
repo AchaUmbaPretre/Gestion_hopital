@@ -1,4 +1,9 @@
 import axios from "axios";
+// Résilience RDC (phase 1) : durcit userRequest (timeout 8 s,
+// retry ×3 backoff exponentiel, erreurs transitoires uniquement —
+// les mutations POST passent par l'outbox offline). Voir
+// services/resilience.ts.
+import { attachResilience } from './services/resilience';
 
 export default {
       REACT_APP_SERVER_DOMAIN : 'http://localhost:8080' 
@@ -30,3 +35,8 @@ userRequest.interceptors.request.use((config) => {
   }
   return config;
 });
+
+// ------------------------------------------------------------
+// Application de la résilience (import en tête de module).
+// ------------------------------------------------------------
+attachResilience(userRequest, { timeoutMs: 8000, retries: 3 });

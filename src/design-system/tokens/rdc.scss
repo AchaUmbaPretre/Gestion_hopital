@@ -1,0 +1,60 @@
+// ============================================================
+// TOKENS RDC — réalité métier d'un HGR en RDC (phase 1).
+// Source unique de vérité pour : triage 4 niveaux (AA),
+// indicateur réseau, états de synchronisation.
+// Consommés par : pages/rdc/*, offline/SyncBadge.
+// Mode sombre : les couleurs texte/fond sont des paires
+// contrastées pensées pour le mode clair (standard RDC) ;
+// le mode sombre les hérite telles quelles (lisibilité
+// garantie par les contrastes documentés ci-dessous).
+// ============================================================
+
+:root {
+  // ---------- Triage 4 niveaux (WCAG AA ≥ 4.5:1 texte/fond) ----------
+  // Rouge : immédiat — Orange : ≤ 30 min — Jaune : ≤ 2 h — Vert : différable
+  --rdc-triage-rouge-texte: #b91c1c;   // 5.94:1 sur #fef2f2
+  --rdc-triage-rouge-fond: #fef2f2;
+  --rdc-triage-rouge-bord: #dc2626;
+  --rdc-triage-rouge-plein: #dc2626;   // sélection : fond plein + blanc
+
+  --rdc-triage-orange-texte: #c2410c;  // 4.52:1 sur #fff7ed
+  --rdc-triage-orange-fond: #fff7ed;
+  --rdc-triage-orange-bord: #ea580c;
+  --rdc-triage-orange-plein: #ea580c;
+
+  --rdc-triage-jaune-texte: #a16207;   // 4.69:1 sur #fefce8
+  --rdc-triage-jaune-fond: #fefce8;
+  --rdc-triage-jaune-bord: #eab308;
+  --rdc-triage-jaune-plein: #eab308;   // sélection : texte sombre #422006
+
+  --rdc-triage-jaune-plein-texte: #422006;
+
+  --rdc-triage-vert-texte: #15803d;    // 4.54:1 sur #f0fdf4
+  --rdc-triage-vert-fond: #f0fdf4;
+  --rdc-triage-vert-bord: #16a34a;
+  --rdc-triage-vert-plein: #16a34a;
+
+  // ---------- Indicateur réseau (🟢 / 🟠 / 🔴, permanent) ----------
+  --rdc-online-texte: #15803d;
+  --rdc-online-fond: #f0fdf4;
+  --rdc-online-bord: #bbf7d0;
+
+  --rdc-degrade-texte: #b45309;
+  --rdc-degrade-fond: #fffbeb;
+  --rdc-degrade-bord: #fde68a;
+
+  // Hors ligne : réutilise les statuts danger du design system.
+
+  // ---------- Synchronisation (outbox) ----------
+  --rdc-sync-attente-texte: #b45309;
+  --rdc-sync-attente-fond: #fffbeb;
+  --rdc-sync-attente-bord: #fde68a;
+
+  --rdc-sync-cours-texte: #1d4ed8;
+  --rdc-sync-cours-fond: #eff6ff;
+  --rdc-sync-cours-bord: #bfdbfe;
+
+  --rdc-sync-echec-texte: #b91c1c;
+  --rdc-sync-echec-fond: #fef2f2;
+  --rdc-sync-echec-bord: #fecaca;
+}

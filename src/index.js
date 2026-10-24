@@ -28,7 +28,16 @@ import { ThemeProvider } from './app/providers/ThemeProvider';
 import { QueryProvider } from './app/providers/QueryProvider';
 // ToastProvider : notifications (remplace react-toastify, étape 3).
 import { ToastProvider } from './design-system/components/molecules/Toast/Toast';
+// Résilience réseau (phase 1 RDC) : durcit le client axios GLOBAL
+// (timeout 8 s, retry ×3 backoff) pour les services .jsx existants.
+import { installerResilienceGlobale } from './services/resilience';
+// Offline (phase 1 RDC) : Service Worker (precache + cache API +
+// Background Sync) + moteur de synchronisation de la file outbox.
+import { register as registerServiceWorker } from './serviceWorkerRegistration';
+import { installerSyncEngine } from './offline';
 // ----------------------------------------------------------------
+
+installerResilienceGlobale();
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
@@ -47,3 +56,9 @@ root.render(
 
 
 reportWebVitals();
+
+// PWA offline-first (phase 1 RDC) : en production uniquement —
+// précache de l'app shell, cache runtime des GET /api, Background
+// Sync qui réveille le moteur de synchronisation de l'outbox.
+registerServiceWorker();
+installerSyncEngine();

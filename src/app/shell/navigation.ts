@@ -1,7 +1,8 @@
 /**
- * NAVIGATION — source unique de vérité du menu latéral et de la
- * palette ⌘K. Réplique EXACTEMENT les rôles de l'ancien SideBar.jsx
- * (migration sans régression) + actions rapides pour la palette.
+ * NAVIGATION — source unique de vérité du menu latéral.
+ * Réplique les rôles de l'ancien SideBar.jsx (migration sans
+ * régression). Phase 1 RDC : la palette ⌘K est RETIRÉE (les boutons
+ * visibles de l'accueil RDC = hub) — QUICK_ACTIONS supprimées.
  */
 import type { ComponentType } from 'react';
 import type { IconProps } from '../../design-system/foundation/icons';
@@ -68,6 +69,9 @@ export function filterNavByRole(entries: NavEntry[], role: string | undefined): 
 
 export const NAV_ENTRIES: NavEntry[] = [
   { key: 'home', label: 'Accueil', path: '/', icon: HomeIcon, roles: ['ADMINISTRATEUR', 'RECEPTIONNISTE', 'DOCTEUR', 'TECHNICIEN'] },
+  // Ancien tableau de bord : conservé pour cohabitation (phase 7
+  // décidera de son retrait) — ne JAMAIS laisser d'orphelin.
+  { key: 'dashboard', label: 'Tableau de bord (hérité)', path: '/dashboard', icon: BarChartIcon, roles: ['ADMINISTRATEUR'] },
   {
     key: 'personnel',
     label: 'Personnel médical',
@@ -155,23 +159,4 @@ export const NAV_ENTRIES: NavEntry[] = [
     ],
   },
   { key: 'parametres', label: 'Paramètres', path: '/parametres', icon: SlidersIcon, roles: ['ADMINISTRATEUR'], disabled: true },
-];
-
-// ------------------------------------------------------------
-// Actions rapides de la palette ⌘K (nouvelles capacités UX)
-// ------------------------------------------------------------
-export interface QuickAction {
-  key: string;
-  label: string;
-  path: string;
-  icon: ComponentType<IconProps>;
-  roles: UserRole[];
-}
-
-export const QUICK_ACTIONS: QuickAction[] = [
-  { key: 'qa-nouveau-patient', label: 'Créer un patient', path: '/form_patient', icon: UserPlusIcon, roles: ['ADMINISTRATEUR', 'RECEPTIONNISTE'] },
-  { key: 'qa-nouvelle-consultation', label: 'Démarrer une consultation', path: '/consultation', icon: ClipboardPlusIcon, roles: ['ADMINISTRATEUR', 'DOCTEUR'] },
-  { key: 'qa-nouveau-personnel', label: 'Ajouter un personnel', path: '/form_personnel', icon: UserPlusIcon, roles: ['ADMINISTRATEUR'] },
-  { key: 'qa-nouveau-rdv', label: 'Planifier un rendez-vous', path: '/liste_rdv', icon: CalendarIcon, roles: ['ADMINISTRATEUR', 'RECEPTIONNISTE', 'DOCTEUR'] },
-  { key: 'qa-prescription-labo', label: 'Prescrire une analyse', path: '/prescription_labo', icon: FlaskIcon, roles: ['ADMINISTRATEUR', 'TECHNICIEN'] },
 ];

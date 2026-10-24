@@ -77,8 +77,8 @@
   border: 1px solid var(--color-border-subtle);
   background: var(--color-bg-surface);
 
-  &.en_ligne { color: #15803d; border-color: #bbf7d0; background: #f0fdf4; }
-  &.degrade  { color: #b45309; border-color: #fde68a; background: #fffbeb; }
+  &.en_ligne { color: var(--rdc-online-texte); border-color: var(--rdc-online-bord); background: var(--rdc-online-fond); }
+  &.degrade  { color: var(--rdc-degrade-texte); border-color: var(--rdc-degrade-bord); background: var(--rdc-degrade-fond); }
   &.hors_ligne { color: var(--color-status-danger); border-color: var(--color-status-danger-border); background: var(--color-status-danger-bg); }
 }
 
@@ -193,17 +193,17 @@
     outline-offset: 2px;
   }
 
-  &.rouge  { border-color: #dc2626; background: #fef2f2; color: #b91c1c; }
-  &.orange { border-color: #ea580c; background: #fff7ed; color: #c2410c; }
-  &.jaune  { border-color: #eab308; background: #fefce8; color: #a16207; }
-  &.vert   { border-color: #16a34a; background: #f0fdf4; color: #15803d; }
+  &.rouge  { border-color: var(--rdc-triage-rouge-bord); background: var(--rdc-triage-rouge-fond); color: var(--rdc-triage-rouge-texte); }
+  &.orange { border-color: var(--rdc-triage-orange-bord); background: var(--rdc-triage-orange-fond); color: var(--rdc-triage-orange-texte); }
+  &.jaune  { border-color: var(--rdc-triage-jaune-bord); background: var(--rdc-triage-jaune-fond); color: var(--rdc-triage-jaune-texte); }
+  &.vert   { border-color: var(--rdc-triage-vert-bord); background: var(--rdc-triage-vert-fond); color: var(--rdc-triage-vert-texte); }
 
   // Sélection : fond plein, texte contrasté (jaune -> texte sombre)
-  &.rouge.selectionne  { background: #dc2626; color: #fff; }
-  &.orange.selectionne { background: #ea580c; color: #fff; }
-  &.jaune.selectionne  { background: #eab308; color: #422006;
-    .delai { color: #422006; } }
-  &.vert.selectionne   { background: #16a34a; color: #fff; }
+  &.rouge.selectionne  { background: var(--rdc-triage-rouge-plein); color: #fff; }
+  &.orange.selectionne { background: var(--rdc-triage-orange-plein); color: #fff; }
+  &.jaune.selectionne  { background: var(--rdc-triage-jaune-plein); color: var(--rdc-triage-jaune-plein-texte);
+    .delai { color: var(--rdc-triage-jaune-plein-texte); } }
+  &.vert.selectionne   { background: var(--rdc-triage-vert-plein); color: #fff; }
 
   &.rouge.selectionne .delai,
   &.orange.selectionne .delai,
