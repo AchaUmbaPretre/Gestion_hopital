@@ -1,0 +1,220 @@
+// Layouts partagés — tokens : --content-max-width, --card-*
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.heading {
+  min-width: 0;
+}
+
+.title {
+  font-size: var(--font-size-h2);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+}
+
+.description {
+  margin-top: var(--space-1);
+  font-size: var(--font-size-body);
+  color: var(--color-text-secondary);
+  max-width: 60ch;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-inline-gap);
+  flex-shrink: 0;
+}
+
+.toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+// ---------- DetailLayout ----------
+.detailHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 24px;
+}
+
+.backButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-md);
+  color: var(--color-text-brand);
+  font-size: var(--font-size-body-sm);
+  cursor: pointer;
+
+  &:hover {
+    background-color: var(--color-primary-subtle);
+  }
+
+  &:focus-visible {
+    outline: var(--focus-ring);
+    outline-offset: var(--focus-ring-offset);
+  }
+}
+
+.detailGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: var(--space-4);
+  align-items: start;
+
+  @media (max-width: 960px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.aside {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  position: sticky;
+  top: calc(var(--topbar-height) + var(--space-3));
+
+  @media (max-width: 960px) {
+    position: static;
+  }
+}
+
+// ---------- FormLayout ----------
+.formPage {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-6) 0;
+}
+
+.formCard {
+  width: 100%;
+  background-color: var(--color-bg-surface);
+  border: var(--card-border);
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow);
+  padding: var(--card-padding-lg);
+  display: flex;
+  flex-direction: column;
+}
+
+.formSm {
+  max-width: 480px;
+}
+
+.formMd {
+  max-width: 640px;
+}
+
+.formLg {
+  max-width: 960px;
+}
+
+.formBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-form-gap);
+  margin-top: var(--space-4);
+}
+
+.formFooter {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-inline-gap);
+  margin-top: var(--space-6);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+// ---------- AuthLayout ----------
+.authPage {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: 100vh;
+  min-height: 100dvh;
+
+  @media (max-width: 960px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.authBrand {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-12);
+  background-color: var(--color-primary-subtle);
+
+  @media (max-width: 960px) {
+    display: none;
+  }
+}
+
+.authMark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-lg);
+  background-color: var(--color-primary);
+  color: var(--color-primary-contrast);
+  font-size: var(--font-size-h3);
+  font-weight: var(--font-weight-bold);
+}
+
+.authName {
+  font-size: var(--font-size-h4);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+}
+
+.authTagline {
+  font-size: var(--font-size-body);
+  color: var(--color-text-secondary);
+  max-width: 40ch;
+  line-height: var(--line-height-relaxed);
+}
+
+.authPanel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+}
+
+.authCard {
+  width: 100%;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+}
+
+.authTitle {
+  font-size: var(--font-size-h2);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+}
+
+.authSubtitle {
+  margin-top: var(--space-2);
+  font-size: var(--font-size-body);
+  color: var(--color-text-secondary);
+}

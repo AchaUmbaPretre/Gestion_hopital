@@ -1,0 +1,268 @@
+// Sidebar — tokens : component.scss (--sidebar-*)
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  width: var(--sidebar-width);
+  height: 100vh;
+  height: 100dvh;
+  position: sticky;
+  top: 0;
+  flex-shrink: 0;
+  background-color: var(--color-bg-surface);
+  border-right: 1px solid var(--color-border-subtle);
+  transition: width var(--transition-macro);
+  overflow: hidden;
+}
+
+// ---------- Mode réduit (desktop) ----------
+.collapsed {
+  width: var(--sidebar-width-collapsed);
+
+  .brandName,
+  .linkLabel,
+  .chevron {
+    display: none;
+  }
+
+  .link {
+    justify-content: center;
+    padding: 0;
+  }
+
+  .collapseButton {
+    justify-content: center;
+  }
+}
+
+// ---------- Drawer mobile ----------
+@media (max-width: 960px) {
+  .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: var(--z-fixed);
+    width: min(320px, 84vw);
+    transform: translateX(-100%);
+    transition: transform var(--transition-macro);
+    box-shadow: var(--shadow-xl);
+  }
+
+  .drawerOpen {
+    transform: translateX(0);
+  }
+}
+
+.overlay {
+  display: none;
+
+  @media (max-width: 960px) {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: calc(var(--z-fixed) - 1);
+    background-color: var(--color-bg-overlay);
+    animation: overlay-in var(--duration-normal) var(--ease-out);
+  }
+}
+
+// ---------- Marque ----------
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--topbar-height);
+  padding: 0 var(--space-3);
+  border-bottom: 1px solid var(--color-border-subtle);
+  flex-shrink: 0;
+}
+
+.brandMark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  background-color: var(--color-primary);
+  color: var(--color-primary-contrast);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-h5);
+}
+
+.brandName {
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-snug);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.closeDrawer {
+  display: none;
+
+  @media (max-width: 960px) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: auto;
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: transparent;
+    border-radius: var(--radius-md);
+    color: var(--color-text-secondary);
+
+    &:hover {
+      background-color: var(--color-bg-inset);
+    }
+  }
+}
+
+// ---------- Navigation ----------
+.nav {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-2) var(--space-2);
+}
+
+.list,
+.subList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.subList {
+  margin-top: 2px;
+}
+
+.item {
+  min-width: 0;
+}
+
+.link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: 9px var(--space-3);
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-body);
+  text-align: left;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background-color var(--transition-micro), color var(--transition-micro);
+
+  svg {
+    flex-shrink: 0;
+  }
+
+  &:hover {
+    background-color: var(--color-bg-inset);
+    color: var(--color-text-primary);
+    text-decoration: none;
+  }
+
+  &:focus-visible {
+    outline: var(--focus-ring);
+    outline-offset: var(--focus-ring-offset);
+  }
+}
+
+.active {
+  background-color: var(--color-primary-subtle);
+  color: var(--color-text-brand);
+  font-weight: var(--font-weight-medium);
+
+  &:hover {
+    background-color: var(--color-primary-subtle-hover);
+    color: var(--color-text-brand);
+  }
+}
+
+.nested {
+  padding: 7px var(--space-3) 7px var(--space-8);
+  font-size: var(--font-size-body-sm);
+}
+
+.groupButton {
+  cursor: pointer;
+}
+
+.linkLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chevron {
+  display: inline-flex;
+  color: var(--color-text-tertiary);
+  transition: transform var(--transition-micro);
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+}
+
+.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+
+  &:hover {
+    background-color: transparent;
+    color: var(--color-text-secondary);
+  }
+}
+
+// ---------- Bouton replier (pied de sidebar) ----------
+.collapseButton {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-md);
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-body-sm);
+  cursor: pointer;
+  flex-shrink: 0;
+
+  &:hover {
+    background-color: var(--color-bg-inset);
+    color: var(--color-text-primary);
+  }
+
+  &:focus-visible {
+    outline: var(--focus-ring);
+    outline-offset: var(--focus-ring-offset);
+  }
+}
+
+@keyframes overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+// Touch : cibles tactiles plus larges
+@media (pointer: coarse) {
+  .link {
+    padding-top: 11px;
+    padding-bottom: 11px;
+  }
+}

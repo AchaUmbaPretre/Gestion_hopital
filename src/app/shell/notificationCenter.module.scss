@@ -1,0 +1,78 @@
+// NotificationCenter — popover dense, lecture rapide
+.panel {
+  width: 340px;
+  max-width: calc(100vw - var(--space-6));
+  max-height: 420px;
+  overflow-y: auto;
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-dropdown);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-3);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--color-border-subtle);
+  margin-bottom: var(--space-2);
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-body-sm);
+  padding: var(--space-4) 0;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+  transition: background-color var(--transition-micro);
+
+  &:hover {
+    background-color: var(--color-bg-inset);
+  }
+}
+
+.itemIcon {
+  display: inline-flex;
+  color: var(--color-text-brand);
+  margin-top: 2px;
+}
+
+.itemContent {
+  min-width: 0;
+}
+
+.itemTitle {
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-snug);
+}
+
+.itemMeta {
+  font-size: var(--font-size-caption);
+  color: var(--color-text-tertiary);
+  font-variant-numeric: tabular-nums;
+  margin-top: 1px;
+}
