@@ -1,0 +1,117 @@
+// ============================================================
+// COMPONENT TOKENS — Niveau 3 / 3
+// Dimensions et états spécifiques aux composants. Chaque
+// composant du design-system lit SES tokens ici ; le composant
+// ne contient jamais de valeur magique.
+// ============================================================
+
+:root {
+  // ----------------------------------------------------------
+  // BUTTON
+  // ----------------------------------------------------------
+  --button-height-sm: 32px;
+  --button-height-md: 40px;
+  --button-height-lg: 48px;
+  --button-padding-x-sm: var(--space-3);
+  --button-padding-x-md: var(--space-4);
+  --button-padding-x-lg: var(--space-6);
+  --button-font-size-sm: var(--font-size-body-sm);
+  --button-font-size-md: var(--font-size-body);
+  --button-font-size-lg: var(--font-size-body-lg);
+  --button-gap: var(--space-2);
+  --button-radius: var(--radius-button);
+
+  // ----------------------------------------------------------
+  // ICON BUTTON (touch target ≥ 44px sur pointeurs tactiles :
+  // géré dans le module du composant via (pointer: coarse))
+  // ----------------------------------------------------------
+  --icon-button-size-sm: 32px;
+  --icon-button-size-md: 40px;
+
+  // ----------------------------------------------------------
+  // INPUT / SELECT / FORM
+  // ----------------------------------------------------------
+  --input-height-sm: 32px;
+  --input-height-md: 40px;
+  --input-height-lg: 44px;
+  --input-padding-x: var(--space-3);
+  --input-gap-icon: var(--space-2);
+  --input-label-gap: var(--space-2);
+  --input-helper-gap: var(--space-2);
+  --input-max-width: 420px;
+  --field-label-size: var(--font-size-body-sm);
+  --field-helper-size: var(--font-size-caption);
+
+  // ----------------------------------------------------------
+  // BADGE / TAG
+  // ----------------------------------------------------------
+  --badge-height-sm: 20px;
+  --badge-height-md: 24px;
+  --badge-padding-x-sm: var(--space-2);
+  --badge-padding-x-md: var(--space-3);
+  --badge-font-size-sm: var(--font-size-overline);
+  --badge-font-size-md: var(--font-size-caption);
+  --badge-dot-size: 6px;
+  --tag-gap: var(--space-2);
+
+  // ----------------------------------------------------------
+  // AVATAR
+  // ----------------------------------------------------------
+  --avatar-size-xs: 24px;
+  --avatar-size-sm: 32px;
+  --avatar-size-md: 40px;
+  --avatar-size-lg: 48px;
+  --avatar-size-xl: 64px;
+  --avatar-status-size: 10px;
+  --avatar-status-border: 2px;
+
+  // ----------------------------------------------------------
+  // SPINNER
+  // ----------------------------------------------------------
+  --spinner-size-xs: 12px;
+  --spinner-size-sm: 16px;
+  --spinner-size-md: 24px;
+  --spinner-size-lg: 32px;
+  --spinner-stroke: 2px;
+
+  // ----------------------------------------------------------
+  // SKELETON
+  // ----------------------------------------------------------
+  --skeleton-radius: var(--radius-sm);
+  --skeleton-text-height: 12px;
+  --skeleton-shimmer-duration: 1.4s;
+
+  // ----------------------------------------------------------
+  // TOOLTIP
+  // ----------------------------------------------------------
+  --tooltip-max-width: 280px;
+  --tooltip-padding: var(--space-2) var(--space-3);
+  --tooltip-font-size: var(--font-size-caption);
+  --tooltip-gap: 6px;
+  --tooltip-delay: 300ms;
+
+  // ----------------------------------------------------------
+  // CARD (préparation molecules/organisms)
+  // ----------------------------------------------------------
+  --card-padding: var(--space-card-padding);
+  --card-radius: var(--radius-card);
+  --card-border: 1px solid var(--color-border-subtle);
+  --card-shadow: var(--shadow-sm);
+  --card-shadow-hover: var(--shadow-md);
+
+  // ----------------------------------------------------------
+  // LAYOUT (sidebar, topbar — utilisés dès l'étape 3)
+  // ----------------------------------------------------------
+  --sidebar-width: 264px;
+  --sidebar-width-collapsed: 72px;
+  --topbar-height: 64px;
+  --content-max-width: 1440px;
+
+  // ----------------------------------------------------------
+  // TABLE (DataTable — étape 4)
+  // ----------------------------------------------------------
+  --table-row-height-compact: 40px;
+  --table-row-height-normal: 48px;
+  --table-row-height-comfortable: 56px;
+  --table-header-height: 44px;
+}

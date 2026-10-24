@@ -1,0 +1,60 @@
+// Avatar — tokens : component.scss (--avatar-*)
+.wrapper {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  font-family: var(--font-family-ui);
+  font-weight: var(--font-weight-semibold);
+  object-fit: cover;
+  background-color: var(--color-bg-inset);
+  color: var(--color-text-secondary);
+  user-select: none;
+}
+
+.xs { width: var(--avatar-size-xs); height: var(--avatar-size-xs); font-size: var(--font-size-overline); }
+.sm { width: var(--avatar-size-sm); height: var(--avatar-size-sm); font-size: var(--font-size-caption); }
+.md { width: var(--avatar-size-md); height: var(--avatar-size-md); font-size: var(--font-size-body-sm); }
+.lg { width: var(--avatar-size-lg); height: var(--avatar-size-lg); font-size: var(--font-size-body); }
+.xl { width: var(--avatar-size-xl); height: var(--avatar-size-xl); font-size: var(--font-size-h4); }
+
+// Teintes déterministes — fonds subtle + textes contrastés via tokens.
+.a { background-color: var(--color-primary-subtle); color: var(--color-text-brand); }
+.b { background-color: var(--color-status-success-bg); color: var(--color-status-success); }
+.c { background-color: var(--color-status-warning-bg); color: var(--color-status-warning); }
+.d { background-color: var(--color-status-danger-bg); color: var(--color-status-danger); }
+.e { background-color: var(--color-status-info-bg); color: var(--color-status-info); }
+.f { background-color: var(--color-bg-inset); color: var(--color-text-secondary); }
+
+.status {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: var(--avatar-status-size);
+  height: var(--avatar-status-size);
+  border-radius: var(--radius-full);
+  border: var(--avatar-status-border) solid var(--color-bg-surface);
+}
+
+.status-online  { background-color: var(--color-status-success); }
+.status-busy    { background-color: var(--color-status-danger); }
+.status-away    { background-color: var(--color-status-warning); }
+.status-offline { background-color: var(--color-text-disabled); }
+
+.statusSrOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

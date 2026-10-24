@@ -1,0 +1,52 @@
+// Skeleton — tokens : component.scss (--skeleton-*)
+.skeleton {
+  display: inline-block;
+  background-color: var(--color-skeleton-base);
+  user-select: none;
+  pointer-events: none;
+}
+
+.text {
+  height: var(--skeleton-text-height);
+  width: 100%;
+  border-radius: var(--skeleton-radius);
+}
+
+.circular {
+  border-radius: var(--radius-full);
+}
+
+.rectangular {
+  border-radius: var(--skeleton-radius);
+}
+
+.animated {
+  position: relative;
+  overflow: hidden;
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(
+      90deg,
+      transparent,
+      var(--color-skeleton-highlight),
+      transparent
+    );
+    animation: shimmer var(--skeleton-shimmer-duration) var(--ease-in-out) infinite;
+  }
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animated::after {
+    animation: none;
+  }
+}

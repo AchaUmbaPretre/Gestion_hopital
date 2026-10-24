@@ -54,6 +54,27 @@ const ListeRdv = () => {
     setDateFilter(dates);
   };
 
+  // TODO(refonte RDV — étape 5.4 du MIGRATION_PLAN.md) : vue détaillée.
+  // L'API expose GET /One mais la fiche détaillée RDV sera livrée avec
+  // la refonte du module (DetailLayout). Stub temporaire non bloquant.
+  const handleViewDetails = (id) => {
+    notification.info({
+      message: 'Détails du rendez-vous',
+      description: `L'affichage détaillé du rendez-vous n°${id} sera disponible avec la refonte du module.`,
+    });
+  };
+
+  // TODO(refonte RDV — étape 5.4 du MIGRATION_PLAN.md) : l'API backend
+  // n'expose pas de route DELETE pour les RDV (routes/rdv.routes.js).
+  // Suppression impossible côté client — à demander au backend ou à
+  // couvrir par un statut "annulé".
+  const handleDelete = (id) => {
+    notification.warning({
+      message: 'Suppression indisponible',
+      description: `La suppression du rendez-vous n°${id} n'est pas encore prise en charge par l'API.`,
+    });
+  };
+
   const handleConfirmRdv = async (id_rdv) => {
     try {
       await putRdvConfirmation(id_rdv);

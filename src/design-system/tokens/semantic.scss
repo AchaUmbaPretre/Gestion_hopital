@@ -1,0 +1,221 @@
+// ============================================================
+// SEMANTIC TOKENS — Niveau 2 / 3
+// Tokens porteurs d'intention : surfaces, textes, statuts,
+// focus. Composés depuis les primitives (niveau 1).
+//
+// STRATÉGIE DARK MODE (ADR-004) :
+//   - [data-theme='light'] sur <html> → thème clair forcé
+//   - [data-theme='dark']  sur <html> → thème sombre forcé
+//   - Aucun attribut (ou 'auto')        → suit prefers-color-scheme
+//   Les composants ne lisent QUE les tokens sémantiques : le
+//   dark mode est gratuit, sans double stylesheet.
+// ============================================================
+
+@use 'primitive' as p;
+
+// ------------------------------------------------------------
+// THÈME CLAIR
+// ------------------------------------------------------------
+@mixin theme-light {
+  // --- Surfaces ---
+  --color-bg-base: p.$gray-50;          // fond applicatif
+  --color-bg-surface: #ffffff;          // cards, panels
+  --color-bg-elevated: #ffffff;         // modals, popovers
+  --color-bg-overlay: rgb(17 24 39 / 0.55); // backdrop modal
+  --color-bg-inset: p.$gray-100;        // zones en retrait, table head
+
+  // --- Textes ---
+  --color-text-primary: p.$gray-900;
+  --color-text-secondary: p.$gray-600;
+  --color-text-tertiary: p.$gray-500;
+  --color-text-disabled: p.$gray-400;
+  --color-text-inverse: #ffffff;
+  --color-text-brand: p.$blue-700;      // liens, valeurs cliquables
+
+  // --- Bordures ---
+  --color-border-subtle: p.$gray-200;
+  --color-border-default: p.$gray-300;
+  --color-border-strong: p.$gray-400;
+
+  // --- Primary (bleu confiance) ---
+  // Bouton plein : blue-600 + texte blanc = 5.17:1 (AA ✓)
+  --color-primary: p.$blue-600;
+  --color-primary-hover: p.$blue-700;
+  --color-primary-active: p.$blue-800;
+  --color-primary-contrast: #ffffff;
+  --color-primary-subtle: p.$blue-50;   // fonds d'accent (row hover)
+  --color-primary-subtle-hover: p.$blue-100;
+  --color-primary-border: p.$blue-600;
+
+  // --- Statut SUCCESS (vert médical) ---
+  // Texte emerald-700 = 4.52:1 sur blanc (AA ✓)
+  --color-status-success: p.$emerald-700;
+  --color-status-success-strong: p.$emerald-600;
+  --color-status-success-bg: p.$emerald-50;
+  --color-status-success-border: p.$emerald-200;
+  --color-status-success-contrast: #ffffff; // fond plein (badge)
+
+  // --- Statut WARNING (ambre) ---
+  --color-status-warning: p.$amber-700;
+  --color-status-warning-strong: p.$amber-600;
+  --color-status-warning-bg: p.$amber-50;
+  --color-status-warning-border: p.$amber-200;
+  --color-status-warning-contrast: #ffffff;
+
+  // --- Statut DANGER (rouge médical) ---
+  // Texte red-600 = 4.53:1 sur blanc (AA ✓)
+  --color-status-danger: p.$red-600;
+  --color-status-danger-strong: p.$red-600;
+  --color-status-danger-bg: p.$red-50;
+  --color-status-danger-border: p.$red-200;
+  --color-status-danger-contrast: #ffffff;
+
+  // --- Statut INFO (teal) ---
+  --color-status-info: p.$teal-700;
+  --color-status-info-bg: p.$teal-50;
+  --color-status-info-border: p.$teal-200;
+  --color-status-info-contrast: #ffffff;
+
+  // --- Focus (Trust by design : focus toujours visible) ---
+  --color-focus-ring: p.$blue-600;
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+
+  // --- Skeleton / placeholders ---
+  --color-skeleton-base: p.$gray-200;
+  --color-skeleton-highlight: p.$gray-50;
+
+  // --- Divers ---
+  --color-scrollbar-thumb: p.$gray-300;
+  --color-scrollbar-track: transparent;
+  --color-selection-bg: p.$blue-100;
+  --color-selection-text: p.$blue-950;
+  --color-shadow-color: rgb(16 24 40 / 1); // teinte des ombres
+}
+
+// ------------------------------------------------------------
+// THÈME SOMBRE — surfaces neutres bleutées, JAMAIS noir pur.
+// Pattern "inverted" (Carbon dark) : primary clair + texte sombre
+// pour garantir ≥ 4.5:1 sur les boutons pleins.
+// ------------------------------------------------------------
+@mixin theme-dark {
+  // --- Surfaces (élevation = plus clair) ---
+  --color-bg-base: p.$ink-900;
+  --color-bg-surface: p.$ink-800;
+  --color-bg-elevated: p.$ink-700;
+  --color-bg-overlay: rgb(2 6 23 / 0.70);
+  --color-bg-inset: rgb(255 255 255 / 0.04);
+
+  // --- Textes ---
+  --color-text-primary: p.$slate-50;
+  --color-text-secondary: p.$slate-300;
+  --color-text-tertiary: p.$slate-400;
+  --color-text-disabled: p.$slate-500;
+  --color-text-inverse: p.$slate-900;
+  --color-text-brand: p.$blue-300;
+
+  // --- Bordures ---
+  --color-border-subtle: p.$ink-700;
+  --color-border-default: p.$slate-700;
+  --color-border-strong: p.$slate-500;
+
+  // --- Primary : blue-400 (#60A5FA) + texte ink-900 = 7.6:1 (AA ✓)
+  --color-primary: p.$blue-400;
+  --color-primary-hover: p.$blue-300;
+  --color-primary-active: p.$blue-200;
+  --color-primary-contrast: p.$ink-900;
+  --color-primary-subtle: rgb(96 165 250 / 0.12);
+  --color-primary-subtle-hover: rgb(96 165 250 / 0.20);
+  --color-primary-border: p.$blue-400;
+
+  // --- Statuts (400 = lisibles sur fond sombre, ≥ 4.5:1) ---
+  --color-status-success: p.$emerald-400;
+  --color-status-success-strong: p.$emerald-300;
+  --color-status-success-bg: rgb(16 185 129 / 0.12);
+  --color-status-success-border: rgb(16 185 129 / 0.35);
+  --color-status-success-contrast: p.$ink-900;
+
+  --color-status-warning: p.$amber-400;
+  --color-status-warning-strong: p.$amber-300;
+  --color-status-warning-bg: rgb(245 158 11 / 0.12);
+  --color-status-warning-border: rgb(245 158 11 / 0.35);
+  --color-status-warning-contrast: p.$ink-900;
+
+  --color-status-danger: p.$red-400;
+  --color-status-danger-strong: p.$red-300;
+  --color-status-danger-bg: rgb(239 68 68 / 0.12);
+  --color-status-danger-border: rgb(239 68 68 / 0.35);
+  --color-status-danger-contrast: p.$ink-900;
+
+  --color-status-info: p.$teal-400;
+  --color-status-info-bg: rgb(20 184 166 / 0.12);
+  --color-status-info-border: rgb(20 184 166 / 0.35);
+  --color-status-info-contrast: p.$ink-900;
+
+  // --- Focus ---
+  --color-focus-ring: p.$blue-400;
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+
+  // --- Skeleton / placeholders ---
+  --color-skeleton-base: p.$ink-700;
+  --color-skeleton-highlight: p.$ink-600;
+
+  // --- Divers ---
+  --color-scrollbar-thumb: p.$slate-600;
+  --color-scrollbar-track: transparent;
+  --color-selection-bg: rgb(96 165 250 / 0.30);
+  --color-selection-text: p.$slate-50;
+  --color-shadow-color: rgb(0 0 0 / 1);
+}
+
+// ============================================================
+// APPLICATION DES THÈMES
+// ============================================================
+:root {
+  @include theme-light;
+  color-scheme: light;
+}
+
+// Thème sombre forcé (toggle utilisateur)
+[data-theme='dark'] {
+  @include theme-dark;
+  color-scheme: dark;
+}
+
+// Mode "auto" : suit le système tant que l'utilisateur n'a pas
+// choisi explicitement le thème clair.
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']):not([data-theme='dark']) {
+    @include theme-dark;
+    color-scheme: dark;
+  }
+}
+
+// ============================================================
+// TOKENS SÉMANTIQUES DE LAYOUT (invariants entre thèmes)
+// ============================================================
+:root {
+  // Espacements composites
+  --space-card-padding: var(--space-4);
+  --space-card-padding-lg: var(--space-6);
+  --space-section-gap: var(--space-6);
+  --space-form-gap: var(--space-4);
+  --space-inline-gap: var(--space-2);
+  --space-inline-gap-lg: var(--space-3);
+
+  // Rayons composites
+  --radius-button: var(--radius-md);
+  --radius-input: var(--radius-md);
+  --radius-card: var(--radius-lg);
+  --radius-badge: var(--radius-full);
+  --radius-dialog: var(--radius-xl);
+  --radius-dropdown: var(--radius-lg);
+
+  // Transitions standardisées
+  --transition-micro: var(--duration-fast) var(--ease-out);
+  --transition-macro: var(--duration-normal) var(--ease-in-out);
+
+  // Anneau de focus composite (focus-visible uniquement)
+  --focus-ring: var(--focus-ring-width) solid var(--color-focus-ring);
+}

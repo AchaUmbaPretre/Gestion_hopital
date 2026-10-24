@@ -1,0 +1,52 @@
+// Spinner — tokens : component.scss (--spinner-*)
+.spinner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: currentColor;
+
+  .srOnly {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .circle {
+    width: 100%;
+    height: 100%;
+    animation: rotate var(--duration-slow) linear infinite;
+  }
+
+  .track {
+    stroke: currentColor;
+    opacity: 0.2;
+  }
+
+  .progress {
+    stroke: currentColor;
+    stroke-dasharray: 44 62; // arc ~70 % — rotation fluide sans saut
+  }
+}
+
+.xs { width: var(--spinner-size-xs); height: var(--spinner-size-xs); }
+.sm { width: var(--spinner-size-sm); height: var(--spinner-size-sm); }
+.md { width: var(--spinner-size-md); height: var(--spinner-size-md); }
+.lg { width: var(--spinner-size-lg); height: var(--spinner-size-lg); }
+
+@keyframes rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .circle {
+    animation-duration: 2s; // ralentit au lieu de figer : l'activité reste perceptible
+  }
+}

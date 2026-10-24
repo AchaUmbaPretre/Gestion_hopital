@@ -1,0 +1,370 @@
+// ============================================================
+// PRIMITIVE TOKENS — Niveau 1 / 3
+// Valeurs brutes : couleurs, espacements, typographie, rayons,
+// ombres, z-index, motion, breakpoints.
+//
+// RÈGLE : ne JAMAIS consommer directement ces primitives dans
+// un composant. Passer par tokens/semantic.scss (niveau 2) ou
+// tokens/component.scss (niveau 3).
+//
+// Chaque primitive est exposée en CSS custom property (--blue-600,
+// --space-4…) pour l'inspectabilité devtools ; les variables SCSS
+// ($blue-600) servent à composer les tokens sémantiques.
+// ============================================================
+
+// ------------------------------------------------------------
+// COULEURS — Bleu confiance (Primary)
+// Actions principales, liens, focus. #2563EB (blue-600) = bouton
+// plein avec texte blanc ≥ 4.5:1 (WCAG AA).
+// ------------------------------------------------------------
+$blue-50:  #eff6ff;
+$blue-100: #dbeafe;
+$blue-200: #bfdbfe;
+$blue-300: #93c5fd;
+$blue-400: #60a5fa;
+$blue-500: #3b82f6;
+$blue-600: #2563eb;
+$blue-700: #1d4ed8;
+$blue-800: #1e40af;
+$blue-900: #1e3a8a;
+$blue-950: #172554;
+
+// ------------------------------------------------------------
+// COULEURS — Vert médical (Success)
+// Validations, patients stables, paiements reçus.
+// Texte statut sur fond clair : emerald-700 (≥ 4.5:1).
+// ------------------------------------------------------------
+$emerald-50:  #ecfdf5;
+$emerald-100: #d1fae5;
+$emerald-200: #a7f3d0;
+$emerald-300: #6ee7b7;
+$emerald-400: #34d399;
+$emerald-500: #10b981;
+$emerald-600: #059669;
+$emerald-700: #047857;
+$emerald-800: #065f46;
+$emerald-900: #064e3b;
+$emerald-950: #022c22;
+
+// ------------------------------------------------------------
+// COULEURS — Ambre (Warning)
+// Alertes non critiques, RDV à venir, factures en retard léger.
+// Texte statut : amber-700 (≥ 4.5:1 sur blanc).
+// ------------------------------------------------------------
+$amber-50:  #fffbeb;
+$amber-100: #fef3c7;
+$amber-200: #fde68a;
+$amber-300: #fcd34d;
+$amber-400: #fbbf24;
+$amber-500: #f59e0b;
+$amber-600: #d97706;
+$amber-700: #b45309;
+$amber-800: #92400e;
+$amber-900: #78350f;
+$amber-950: #451a03;
+
+// ------------------------------------------------------------
+// COULEURS — Rouge médical (Danger)
+// Urgences, allergies, erreurs critiques. #EF4444 (red-500) =
+// accent ; red-600 #DC2626 pour texte (≥ 4.5:1) et bouton plein.
+// ------------------------------------------------------------
+$red-50:  #fef2f2;
+$red-100: #fee2e2;
+$red-200: #fecaca;
+$red-300: #fca5a5;
+$red-400: #f87171;
+$red-500: #ef4444;
+$red-600: #dc2626;
+$red-700: #b91c1c;
+$red-800: #991b1b;
+$red-900: #7f1d1d;
+$red-950: #450a0a;
+
+// ------------------------------------------------------------
+// COULEURS — Teal (Info / Laboratoire / accent clinique)
+// ------------------------------------------------------------
+$teal-50:  #f0fdfa;
+$teal-100: #ccfbf1;
+$teal-200: #99f6e4;
+$teal-300: #5eead4;
+$teal-400: #2dd4bf;
+$teal-500: #14b8a6;
+$teal-600: #0d9488;
+$teal-700: #0f766e;
+$teal-800: #115e59;
+$teal-900: #134e4a;
+$teal-950: #042f2e;
+
+// ------------------------------------------------------------
+// COULEURS — Neutres (gray-50 → gray-900, échelle 10 tons)
+// Textes, bordures, surfaces claires.
+// ------------------------------------------------------------
+$gray-50:  #f9fafb;
+$gray-100: #f3f4f6;
+$gray-200: #e5e7eb;
+$gray-300: #d1d5db;
+$gray-400: #9ca3af;
+$gray-500: #6b7280;
+$gray-600: #4b5563;
+$gray-700: #374151;
+$gray-800: #1f2937;
+$gray-900: #111827;
+$gray-950: #030712;
+
+// ------------------------------------------------------------
+// COULEURS — Slate (surfaces mode sombre)
+// Neutres bleutées : sombres "médicaux", jamais noir pur.
+// ------------------------------------------------------------
+$slate-50:  #f8fafc;
+$slate-100: #f1f5f9;
+$slate-200: #e2e8f0;
+$slate-300: #cbd5e1;
+$slate-400: #94a3b8;
+$slate-500: #64748b;
+$slate-600: #475569;
+$slate-700: #334155;
+$slate-800: #1e293b;
+$slate-900: #0f172a;
+$slate-950: #020617;
+
+// Surfaces sombres intermédiaires (élevation dans le dark)
+$ink-900: #0f172a; // bg-base (dark)
+$ink-800: #16203a; // bg-surface (dark)
+$ink-700: #1e2a45; // bg-elevated (dark)
+$ink-600: #283655; // bordures fortes (dark)
+
+$color-primitives: (
+  'blue-50': $blue-50,   'blue-100': $blue-100, 'blue-200': $blue-200,
+  'blue-300': $blue-300, 'blue-400': $blue-400, 'blue-500': $blue-500,
+  'blue-600': $blue-600, 'blue-700': $blue-700, 'blue-800': $blue-800,
+  'blue-900': $blue-900, 'blue-950': $blue-950,
+
+  'emerald-50': $emerald-50,   'emerald-100': $emerald-100,
+  'emerald-200': $emerald-200, 'emerald-300': $emerald-300,
+  'emerald-400': $emerald-400, 'emerald-500': $emerald-500,
+  'emerald-600': $emerald-600, 'emerald-700': $emerald-700,
+  'emerald-800': $emerald-800, 'emerald-900': $emerald-900,
+  'emerald-950': $emerald-950,
+
+  'amber-50': $amber-50,   'amber-100': $amber-100,
+  'amber-200': $amber-200, 'amber-300': $amber-300,
+  'amber-400': $amber-400, 'amber-500': $amber-500,
+  'amber-600': $amber-600, 'amber-700': $amber-700,
+  'amber-800': $amber-800, 'amber-900': $amber-900,
+  'amber-950': $amber-950,
+
+  'red-50': $red-50,   'red-100': $red-100,
+  'red-200': $red-200, 'red-300': $red-300,
+  'red-400': $red-400, 'red-500': $red-500,
+  'red-600': $red-600, 'red-700': $red-700,
+  'red-800': $red-800, 'red-900': $red-900,
+  'red-950': $red-950,
+
+  'teal-50': $teal-50,   'teal-100': $teal-100,
+  'teal-200': $teal-200, 'teal-300': $teal-300,
+  'teal-400': $teal-400, 'teal-500': $teal-500,
+  'teal-600': $teal-600, 'teal-700': $teal-700,
+  'teal-800': $teal-800, 'teal-900': $teal-900,
+  'teal-950': $teal-950,
+
+  'gray-50': $gray-50,   'gray-100': $gray-100,
+  'gray-200': $gray-200, 'gray-300': $gray-300,
+  'gray-400': $gray-400, 'gray-500': $gray-500,
+  'gray-600': $gray-600, 'gray-700': $gray-700,
+  'gray-800': $gray-800, 'gray-900': $gray-900,
+  'gray-950': $gray-950,
+
+  'slate-50': $slate-50,   'slate-100': $slate-100,
+  'slate-200': $slate-200, 'slate-300': $slate-300,
+  'slate-400': $slate-400, 'slate-500': $slate-500,
+  'slate-600': $slate-600, 'slate-700': $slate-700,
+  'slate-800': $slate-800, 'slate-900': $slate-900,
+  'slate-950': $slate-950,
+
+  'ink-900': $ink-900, 'ink-800': $ink-800,
+  'ink-700': $ink-700, 'ink-600': $ink-600,
+);
+
+// ------------------------------------------------------------
+// TYPOGRAPHIE
+// Inter (UI) + JetBrains Mono (données médicales, codes, IDs).
+// Fallbacks système garantissent le rendu hors-ligne.
+// ------------------------------------------------------------
+$font-family-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+  Roboto, 'Helvetica Neue', Arial, sans-serif;
+$font-family-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular',
+  Consolas, 'Liberation Mono', Menlo, monospace;
+
+// Échelle modulaire (base 14px pour densité clinique maîtrisée)
+$font-size-display:  2.5rem;    // 40px — hero dashboard
+$font-size-h1:       2rem;      // 32px
+$font-size-h2:       1.5rem;    // 24px
+$font-size-h3:       1.25rem;   // 20px
+$font-size-h4:       1.125rem;  // 18px
+$font-size-h5:       1rem;      // 16px
+$font-size-h6:       0.875rem;  // 14px
+$font-size-body-lg:  1.125rem;  // 18px
+$font-size-body:     0.875rem;  // 14px — corps de l'application
+$font-size-body-sm:  0.8125rem; // 13px — UI dense (tables)
+$font-size-caption:  0.75rem;   // 12px — métadonnées
+$font-size-overline: 0.6875rem; // 11px — labels de section
+
+$font-weight-regular:  400;
+$font-weight-medium:   500;
+$font-weight-semibold: 600;
+$font-weight-bold:     700;
+
+// Line-height ≥ 1.5 pour le corps (lisibilité médicale)
+$line-height-tight:   1.2;
+$line-height-snug:    1.375;
+$line-height-normal:  1.5;
+$line-height-relaxed: 1.625;
+
+// ------------------------------------------------------------
+// ESPACEMENT — système 4px
+// ------------------------------------------------------------
+$space-1:  0.25rem; // 4px
+$space-2:  0.5rem;  // 8px
+$space-3:  0.75rem; // 12px
+$space-4:  1rem;    // 16px
+$space-6:  1.5rem;  // 24px
+$space-8:  2rem;    // 32px
+$space-12: 3rem;    // 48px
+$space-16: 4rem;    // 64px
+$space-24: 6rem;    // 96px
+
+$space-scale: (
+  '1': $space-1,  '2': $space-2,  '3': $space-3,  '4': $space-4,
+  '6': $space-6,  '8': $space-8,  '12': $space-12,
+  '16': $space-16, '24': $space-24,
+);
+
+// ------------------------------------------------------------
+// RAYONS
+// ------------------------------------------------------------
+$radius-none: 0;
+$radius-xs:   0.25rem;  // 4px
+$radius-sm:   0.375rem; // 6px
+$radius-md:   0.5rem;   // 8px — boutons, inputs
+$radius-lg:   0.75rem;  // 12px — cards
+$radius-xl:   1rem;     // 16px — modals
+$radius-2xl:  1.25rem;  // 20px
+$radius-full: 9999px;   // badges, avatars, pills
+
+$radius-scale: (
+  'none': $radius-none, 'xs': $radius-xs, 'sm': $radius-sm,
+  'md': $radius-md, 'lg': $radius-lg, 'xl': $radius-xl,
+  '2xl': $radius-2xl, 'full': $radius-full,
+);
+
+// ------------------------------------------------------------
+// OMBRES — échauffement subtil (Calm Technology)
+// ------------------------------------------------------------
+$shadow-xs: 0 1px 2px rgb(16 24 40 / 0.05);
+$shadow-sm: 0 1px 3px rgb(16 24 40 / 0.08), 0 1px 2px rgb(16 24 40 / 0.04);
+$shadow-md: 0 4px 8px -2px rgb(16 24 40 / 0.10), 0 2px 4px -2px rgb(16 24 40 / 0.05);
+$shadow-lg: 0 12px 16px -4px rgb(16 24 40 / 0.10), 0 4px 6px -2px rgb(16 24 40 / 0.04);
+$shadow-xl: 0 20px 24px -4px rgb(16 24 40 / 0.12), 0 8px 8px -4px rgb(16 24 40 / 0.04);
+
+$shadow-scale: (
+  'xs': $shadow-xs, 'sm': $shadow-sm, 'md': $shadow-md,
+  'lg': $shadow-lg, 'xl': $shadow-xl,
+);
+
+// ------------------------------------------------------------
+// MOTION — 150ms micro / 250ms macro / max 400ms (urgence santé)
+// ------------------------------------------------------------
+$duration-instant: 100ms;
+$duration-fast:    150ms;
+$duration-normal:  250ms;
+$duration-slow:    400ms;
+
+$ease-out:     cubic-bezier(0, 0, 0.2, 1);
+$ease-in-out:  cubic-bezier(0.4, 0, 0.2, 1);
+$ease-spring:  cubic-bezier(0.34, 1.56, 0.64, 1);
+
+// ------------------------------------------------------------
+// Z-INDEX — échelle applicative documentée
+// ------------------------------------------------------------
+$z-dropdown: 1000;
+$z-sticky:   1020;
+$z-fixed:    1030;
+$z-overlay:  1040;
+$z-modal:    1050;
+$z-popover:  1060;
+$z-toast:    1070;
+$z-tooltip:  1080;
+
+// ------------------------------------------------------------
+// BREAKPOINTS (référence SCSS uniquement — pas de CSS vars)
+// ------------------------------------------------------------
+$bp-sm:  640px;
+$bp-md:  768px;
+$bp-lg:  1024px;
+$bp-xl:  1280px;
+$bp-2xl: 1536px;
+
+// ============================================================
+// GÉNÉRATION DES CSS CUSTOM PROPERTIES PRIMITIVES
+// ============================================================
+:root {
+  @each $name, $value in $color-primitives {
+    --#{$name}: #{$value};
+  }
+
+  @each $name, $value in $space-scale {
+    --space-#{$name}: #{$value};
+  }
+
+  @each $name, $value in $radius-scale {
+    --radius-#{$name}: #{$value};
+  }
+
+  @each $name, $value in $shadow-scale {
+    --shadow-#{$name}: #{$value};
+  }
+
+  --font-family-ui: #{$font-family-ui};
+  --font-family-mono: #{$font-family-mono};
+
+  --font-size-display: #{$font-size-display};
+  --font-size-h1: #{$font-size-h1};
+  --font-size-h2: #{$font-size-h2};
+  --font-size-h3: #{$font-size-h3};
+  --font-size-h4: #{$font-size-h4};
+  --font-size-h5: #{$font-size-h5};
+  --font-size-h6: #{$font-size-h6};
+  --font-size-body-lg: #{$font-size-body-lg};
+  --font-size-body: #{$font-size-body};
+  --font-size-body-sm: #{$font-size-body-sm};
+  --font-size-caption: #{$font-size-caption};
+  --font-size-overline: #{$font-size-overline};
+
+  --font-weight-regular: #{$font-weight-regular};
+  --font-weight-medium: #{$font-weight-medium};
+  --font-weight-semibold: #{$font-weight-semibold};
+  --font-weight-bold: #{$font-weight-bold};
+
+  --line-height-tight: #{$line-height-tight};
+  --line-height-snug: #{$line-height-snug};
+  --line-height-normal: #{$line-height-normal};
+  --line-height-relaxed: #{$line-height-relaxed};
+
+  --duration-instant: #{$duration-instant};
+  --duration-fast: #{$duration-fast};
+  --duration-normal: #{$duration-normal};
+  --duration-slow: #{$duration-slow};
+
+  --ease-out: #{$ease-out};
+  --ease-in-out: #{$ease-in-out};
+  --ease-spring: #{$ease-spring};
+
+  --z-dropdown: #{$z-dropdown};
+  --z-sticky: #{$z-sticky};
+  --z-fixed: #{$z-fixed};
+  --z-overlay: #{$z-overlay};
+  --z-modal: #{$z-modal};
+  --z-popover: #{$z-popover};
+  --z-toast: #{$z-toast};
+  --z-tooltip: #{$z-tooltip};
+}

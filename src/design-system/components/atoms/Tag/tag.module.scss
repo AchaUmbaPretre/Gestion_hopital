@@ -1,0 +1,86 @@
+// Tag — tokens : component.scss (--tag-gap)
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--tag-gap);
+  height: var(--badge-height-md);
+  padding: 0 var(--badge-padding-x-md);
+  border: 1px solid transparent;
+  border-radius: var(--radius-badge);
+  font-family: var(--font-family-ui);
+  font-size: var(--badge-font-size-md);
+  font-weight: var(--font-weight-medium);
+  line-height: 1;
+  white-space: nowrap;
+
+  .label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .remove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    margin-right: -4px;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-full);
+    background-color: transparent;
+    color: inherit;
+    cursor: pointer;
+    transition: background-color var(--transition-micro);
+
+    &:hover:not(:disabled) {
+      background-color: rgb(0 0 0 / 0.10);
+    }
+
+    &:focus-visible {
+      outline: var(--focus-ring);
+      outline-offset: var(--focus-ring-offset);
+    }
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
+  }
+}
+
+.neutral {
+  background-color: var(--color-bg-inset);
+  border-color: var(--color-border-subtle);
+  color: var(--color-text-secondary);
+}
+
+.primary {
+  background-color: var(--color-primary-subtle);
+  border-color: transparent;
+  color: var(--color-text-brand);
+}
+
+.success {
+  background-color: var(--color-status-success-bg);
+  border-color: var(--color-status-success-border);
+  color: var(--color-status-success);
+}
+
+.warning {
+  background-color: var(--color-status-warning-bg);
+  border-color: var(--color-status-warning-border);
+  color: var(--color-status-warning);
+}
+
+.danger {
+  background-color: var(--color-status-danger-bg);
+  border-color: var(--color-status-danger-border);
+  color: var(--color-status-danger);
+}
+
+.info {
+  background-color: var(--color-status-info-bg);
+  border-color: var(--color-status-info-border);
+  color: var(--color-status-info);
+}

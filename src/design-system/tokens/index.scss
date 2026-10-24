@@ -1,0 +1,26 @@
+// ============================================================
+// DESIGN SYSTEM TOKENS — point d'entrée unique
+// Importer CE fichier une seule fois (src/index.js).
+// Ordre garanti : primitives → semantic → component.
+// ============================================================
+
+@use 'primitive';
+@use 'semantic';
+@use 'component';
+
+// ------------------------------------------------------------
+// GARDE-FOU ACCESSIBILITÉ — prefers-reduced-motion
+// Le seul usage d'!important autorisé dans le design system :
+// garde-fou global WCAG 2.2 (exception documentée, voir
+// docs/decisions/0005-garde-fou-reduced-motion.md).
+// ------------------------------------------------------------
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
