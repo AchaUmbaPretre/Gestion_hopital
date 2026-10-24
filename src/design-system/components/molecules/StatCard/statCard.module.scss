@@ -1,0 +1,99 @@
+// StatCard — tokens : component.scss (--card-*)
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--card-padding-lg);
+  background-color: var(--color-bg-surface);
+  border: var(--card-border);
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow);
+  text-align: left;
+  min-width: 0;
+  transition: box-shadow var(--transition-micro), transform var(--transition-micro);
+}
+
+.clickable {
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+
+  &:hover {
+    box-shadow: var(--card-shadow-hover);
+    transform: translateY(-1px);
+  }
+
+  &:focus-visible {
+    outline: var(--focus-ring);
+    outline-offset: var(--focus-ring-offset);
+  }
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.label {
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-medium);
+}
+
+.icon {
+  display: inline-flex;
+  color: var(--color-text-tertiary);
+}
+
+.value {
+  font-size: var(--font-size-h2);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--line-height-tight);
+}
+
+.valueSkeleton {
+  height: 1.75rem;
+  width: 96px;
+}
+
+.trend {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-medium);
+}
+
+.trendUp {
+  color: var(--color-status-success);
+}
+
+.trendDown {
+  color: var(--color-status-danger);
+}
+
+.trendFlat {
+  color: var(--color-text-tertiary);
+}
+
+// ---------- Tons (KPI critiques) ----------
+.success .icon {
+  color: var(--color-status-success);
+}
+
+.warning .icon {
+  color: var(--color-status-warning);
+}
+
+.danger .icon {
+  color: var(--color-status-danger);
+}
+
+.danger {
+  border-color: var(--color-status-danger-border);
+  background-color: var(--color-status-danger-bg);
+}

@@ -1,0 +1,28 @@
+// FormField — tokens : component.scss (--field-*, --input-*)
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--input-label-gap);
+}
+
+.label {
+  font-size: var(--field-label-size);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+}
+
+.required {
+  color: var(--color-status-danger);
+}
+
+.hint {
+  font-size: var(--field-helper-size);
+  color: var(--color-text-tertiary);
+  line-height: var(--line-height-snug);
+}
+
+.error {
+  font-size: var(--field-helper-size);
+  color: var(--color-status-danger);
+  line-height: var(--line-height-snug);
+}

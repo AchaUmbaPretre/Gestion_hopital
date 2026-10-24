@@ -1,0 +1,61 @@
+// Breadcrumb — métadonnée discrète au-dessus du titre de page
+.breadcrumb {
+  min-width: 0;
+}
+
+.list {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.link {
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-brand);
+  border-radius: var(--radius-xs);
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.current {
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-medium);
+}
+
+.separator {
+  display: inline-flex;
+  color: var(--color-text-disabled);
+}
+
+.expand {
+  border: none;
+  background: transparent;
+  padding: 0 var(--space-1);
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-body-sm);
+  cursor: pointer;
+  border-radius: var(--radius-xs);
+
+  &:hover {
+    color: var(--color-text-primary);
+  }
+
+  &:focus-visible {
+    outline: var(--focus-ring);
+    outline-offset: var(--focus-ring-offset);
+  }
+}

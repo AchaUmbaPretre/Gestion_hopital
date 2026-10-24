@@ -1,0 +1,94 @@
+// Toast — tokens : --z-toast, statuts sémantiques
+.stack {
+  position: fixed;
+  top: calc(var(--topbar-height) + var(--space-3));
+  right: var(--space-3);
+  z-index: var(--z-toast);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: min(360px, calc(100vw - var(--space-6)));
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  pointer-events: auto;
+  animation: toast-in var(--duration-normal) var(--ease-spring);
+}
+
+.icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.content {
+  flex: 1;
+  min-width: 0;
+}
+
+.title {
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.description {
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-secondary);
+  margin-top: 2px;
+  line-height: var(--line-height-snug);
+}
+
+.close {
+  flex-shrink: 0;
+  margin: -4px -4px 0 0;
+}
+
+// ---------- Variantes ----------
+.success .icon {
+  color: var(--color-status-success);
+}
+
+.success {
+  border-color: var(--color-status-success-border);
+}
+
+.error .icon {
+  color: var(--color-status-danger);
+}
+
+.error {
+  border-color: var(--color-status-danger-border);
+}
+
+.warning .icon {
+  color: var(--color-status-warning);
+}
+
+.warning {
+  border-color: var(--color-status-warning-border);
+}
+
+.info .icon {
+  color: var(--color-status-info);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}

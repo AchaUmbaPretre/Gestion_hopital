@@ -1,0 +1,71 @@
+// Pagination — densité clinique : boutons 32px, chiffres tabulaires
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+}
+
+.arrow,
+.page {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-body-sm);
+  font-variant-numeric: tabular-nums;
+  transition: background-color var(--transition-micro), color var(--transition-micro);
+
+  &:hover:not(:disabled) {
+    background-color: var(--color-bg-inset);
+    color: var(--color-text-primary);
+  }
+
+  &:focus-visible {
+    outline: var(--focus-ring);
+    outline-offset: var(--focus-ring-offset);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}
+
+.page.active {
+  background-color: var(--color-primary);
+  color: var(--color-primary-contrast);
+  font-weight: var(--font-weight-medium);
+
+  &:hover {
+    background-color: var(--color-primary-hover);
+    color: var(--color-primary-contrast);
+  }
+}
+
+.ellipsis {
+  min-width: 20px;
+  text-align: center;
+  color: var(--color-text-tertiary);
+}
+
+.caption {
+  margin-left: var(--space-2);
+  font-size: var(--font-size-caption);
+  color: var(--color-text-tertiary);
+}
+
+// Tactile : cibles ≥ 44px
+@media (pointer: coarse) {
+  .arrow,
+  .page {
+    min-width: 44px;
+    height: 44px;
+  }
+}

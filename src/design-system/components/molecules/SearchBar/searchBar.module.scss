@@ -1,0 +1,69 @@
+// SearchBar — tokens : component.scss (--input-*)
+.searchBar {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--input-gap-icon);
+  height: var(--input-height-md);
+  padding: 0 var(--input-padding-x);
+  background-color: var(--color-bg-surface);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-input);
+  transition: border-color var(--transition-micro), box-shadow var(--transition-micro);
+
+  &:focus-within {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px var(--color-primary-subtle);
+  }
+
+  &:hover:not(:focus-within) {
+    border-color: var(--color-border-strong);
+  }
+}
+
+.sm {
+  height: var(--input-height-sm);
+}
+
+.md {
+  height: var(--input-height-md);
+}
+
+.fullWidth {
+  width: 100%;
+}
+
+.icon {
+  display: inline-flex;
+  color: var(--color-text-tertiary);
+  flex-shrink: 0;
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: var(--font-size-body);
+  color: var(--color-text-primary);
+
+  &::placeholder {
+    color: var(--color-text-tertiary);
+  }
+
+  // Masque le bouton de reset natif (webkit) : on a le nôtre, accessible.
+  &::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+    appearance: none;
+  }
+}
+
+.sm .input {
+  font-size: var(--font-size-body-sm);
+}
+
+.spinner,
+.clear {
+  flex-shrink: 0;
+  display: inline-flex;
+}

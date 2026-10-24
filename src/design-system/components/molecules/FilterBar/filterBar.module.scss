@@ -1,0 +1,48 @@
+// FilterBar — barre discrète sous l'en-tête de liste
+.bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-inline-gap);
+  min-height: 32px;
+}
+
+.count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--radius-full);
+  background-color: var(--color-primary);
+  color: var(--color-primary-contrast);
+  font-size: var(--font-size-overline);
+  font-weight: var(--font-weight-semibold);
+}
+
+.chips {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-inline-gap);
+}
+
+.clearAll {
+  border: none;
+  background: transparent;
+  padding: 0 var(--space-1);
+  font-size: var(--font-size-body-sm);
+  color: var(--color-text-brand);
+  cursor: pointer;
+  border-radius: var(--radius-xs);
+
+  &:hover {
+    text-decoration: underline;
+  }
+
+  &:focus-visible {
+    outline: var(--focus-ring);
+    outline-offset: var(--focus-ring-offset);
+  }
+}

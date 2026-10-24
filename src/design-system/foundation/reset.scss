@@ -1,0 +1,106 @@
+// ============================================================
+// RESET GLOBAL — fondation du design system (étape 3)
+// Remplace le reset hérité de App.css (Poppins en `*`) :
+// la typo passe sous contrôle des tokens (Inter, --font-family-ui).
+// Importer UNE fois, dans src/index.js, APRÈS tokens/index.scss.
+// ============================================================
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+* {
+  margin: 0;
+}
+
+html,
+body,
+#root {
+  min-height: 100vh;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: var(--font-family-ui);
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-normal);
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-base);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+img,
+picture,
+svg,
+video {
+  display: block;
+  max-width: 100%;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+a {
+  color: var(--color-text-brand);
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+h1, h2, h3, h4, h5, h6 {
+  line-height: var(--line-height-snug);
+  font-weight: var(--font-weight-semibold);
+  overflow-wrap: break-word;
+}
+
+p, li {
+  overflow-wrap: break-word;
+}
+
+ul[class], ol[class] {
+  list-style: none;
+  padding: 0;
+}
+
+// Trust by design : focus toujours visible, quel que soit l'élément.
+// Les composants interactifs précisent leur anneau via --focus-ring.
+:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+::selection {
+  background-color: var(--color-selection-bg);
+  color: var(--color-selection-text);
+}
+
+// Scrollbars discrètes (Calm Technology)
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-scrollbar-thumb) var(--color-scrollbar-track);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
