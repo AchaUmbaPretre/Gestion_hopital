@@ -1,0 +1,520 @@
+// ============================================================
+// Écrans cœur RDC — styles partagés (prototype).
+// Consomme les tokens sémantiques du design system existant
+// (--color-*, --space-*, --radius-*) : le mode sombre reste
+// gratuit. Lisibilité : corps >= 16px (typography.scss), boutons
+// d'action critiques >= 64px (brief RDC 3.1).
+// ============================================================
+
+// ---------- Trame commune ----------
+.page {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-4) var(--space-16);
+}
+
+.pageHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-6);
+}
+
+.pageHeaderTitle {
+  font-size: var(--font-size-h2);
+  font-weight: var(--font-weight-semibold);
+  margin: 0;
+  line-height: var(--line-height-snug);
+}
+
+.pageHeaderSub {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-body);
+  margin: 0;
+}
+
+.spacer {
+  flex: 1 1 auto;
+}
+
+.card {
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  box-shadow: var(--shadow-xs);
+}
+
+.cardTitle {
+  font-size: var(--font-size-h4);
+  font-weight: var(--font-weight-semibold);
+  margin: 0 0 var(--space-3);
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+// ---------- Indicateur connexion (permanent) ----------
+.connexion {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-semibold);
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-border-subtle);
+  background: var(--color-bg-surface);
+
+  &.en_ligne { color: #15803d; border-color: #bbf7d0; background: #f0fdf4; }
+  &.degrade  { color: #b45309; border-color: #fde68a; background: #fffbeb; }
+  &.hors_ligne { color: var(--color-status-danger); border-color: var(--color-status-danger-border); background: var(--color-status-danger-bg); }
+}
+
+// ---------- Accueil : 3 boutons géants ----------
+.troisBoutons {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-4);
+  margin: var(--space-6) 0;
+
+  @media (max-width: 760px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.boutonGeant {
+  // >= 64px exigé ; 140px réel = cible tactile généreuse pour
+  // un personnel peu formé au numérique.
+  min-height: 140px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 3px solid var(--color-border-default);
+  border-radius: var(--radius-xl);
+  background: var(--color-bg-surface);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-h4);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  transition: transform var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
+
+  .emoji {
+    font-size: 40px;
+    line-height: 1;
+  }
+
+  .sousLibelle {
+    font-size: var(--font-size-body-sm);
+    font-weight: var(--font-weight-regular);
+    color: var(--color-text-secondary);
+  }
+
+  &:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(0);
+  }
+
+  &:focus-visible {
+    outline: 3px solid var(--color-focus-ring);
+    outline-offset: 3px;
+  }
+
+  // Variantes couleur (bordure + fond léger : AA garanti)
+  &.urgence {
+    border-color: var(--color-status-danger-strong);
+    background: var(--color-status-danger-bg);
+    color: var(--color-status-danger);
+  }
+  &.consultation {
+    border-color: var(--color-primary);
+    background: var(--color-primary-subtle);
+    color: var(--color-primary-hover);
+  }
+  &.pharmacie {
+    border-color: var(--color-status-success-strong);
+    background: var(--color-status-success-bg);
+    color: var(--color-status-success);
+  }
+}
+
+// ---------- Triage : 4 niveaux ----------
+.niveauxTriage {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-2);
+
+  @media (max-width: 640px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.niveauBtn {
+  min-height: 64px; // exigence bouton critique >= 64px
+  border: 2px solid transparent;
+  border-radius: var(--radius-md);
+  font: inherit;
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+  background: var(--color-bg-inset);
+  color: var(--color-text-primary);
+
+  .delai {
+    font-size: var(--font-size-caption);
+    font-weight: var(--font-weight-regular);
+  }
+
+  &:focus-visible {
+    outline: 3px solid var(--color-focus-ring);
+    outline-offset: 2px;
+  }
+
+  &.rouge  { border-color: #dc2626; background: #fef2f2; color: #b91c1c; }
+  &.orange { border-color: #ea580c; background: #fff7ed; color: #c2410c; }
+  &.jaune  { border-color: #eab308; background: #fefce8; color: #a16207; }
+  &.vert   { border-color: #16a34a; background: #f0fdf4; color: #15803d; }
+
+  // Sélection : fond plein, texte contrasté (jaune -> texte sombre)
+  &.rouge.selectionne  { background: #dc2626; color: #fff; }
+  &.orange.selectionne { background: #ea580c; color: #fff; }
+  &.jaune.selectionne  { background: #eab308; color: #422006;
+    .delai { color: #422006; } }
+  &.vert.selectionne   { background: #16a34a; color: #fff; }
+
+  &.rouge.selectionne .delai,
+  &.orange.selectionne .delai,
+  &.vert.selectionne .delai {
+    color: #fff;
+  }
+}
+
+// ---------- Recherche patient ----------
+.rechercheWrap {
+  position: relative;
+}
+
+.rechercheInput {
+  width: 100%;
+  min-height: 64px; // zone de saisie critique : ample et évidente
+  font-size: var(--font-size-body-lg);
+  padding: 0 var(--space-4);
+  border: 2px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
+
+  &::placeholder { color: var(--color-text-tertiary); }
+  &:focus { outline: 2px solid var(--color-focus-ring); border-color: var(--color-primary); }
+}
+
+.resultats {
+  position: absolute;
+  z-index: var(--z-dropdown, 1000);
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  max-height: 380px;
+  overflow: auto;
+  padding: 4px;
+}
+
+.resultatItem {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  width: 100%;
+  text-align: left;
+  padding: 12px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+
+  &:hover, &:focus-visible {
+    background: var(--color-primary-subtle);
+  }
+
+  .nomPrenom { font-weight: var(--font-weight-semibold); }
+  .meta { color: var(--color-text-secondary); font-size: var(--font-size-body-sm); }
+  .dossier { margin-left: auto; }
+}
+
+.creerAction {
+  width: 100%;
+  text-align: left;
+  padding: 14px 12px;
+  border: 2px dashed var(--color-primary);
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-subtle);
+  font: inherit;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-primary-hover);
+  cursor: pointer;
+
+  &:hover { background: var(--color-primary-subtle-hover); }
+}
+
+// ---------- Fiche patient / identité ----------
+.ficheIdentite {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-3) var(--space-4);
+
+  dt { color: var(--color-text-secondary); font-size: var(--font-size-body-sm); }
+  dd { margin: 0; font-weight: var(--font-weight-semibold); }
+}
+
+.dossier {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+// ---------- Badges ----------
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-semibold);
+  border: 1px solid transparent;
+
+  &.ok      { background: var(--color-status-success-bg); color: var(--color-status-success); border-color: var(--color-status-success-border); }
+  &.bas     { background: var(--color-status-warning-bg); color: var(--color-status-warning); border-color: var(--color-status-warning-border); }
+  &.rupture { background: var(--color-status-danger-bg); color: var(--color-status-danger); border-color: var(--color-status-danger-border); }
+  &.info    { background: var(--color-status-info-bg); color: var(--color-status-info); border-color: var(--color-status-info-border); }
+  &.danger  { background: var(--color-status-danger-bg); color: var(--color-status-danger); border-color: var(--color-status-danger-border); }
+}
+
+// Badge de confirmation "Prise en charge autorisée"
+.autorisation {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  border: 2px solid var(--color-status-success-border);
+  background: var(--color-status-success-bg);
+  color: var(--color-status-success);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-body-lg);
+}
+
+// ---------- Alertes ----------
+.alerteBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-status-warning-border);
+  background: var(--color-status-warning-bg);
+  color: var(--color-status-warning);
+  font-weight: var(--font-weight-semibold);
+}
+
+.alerteBarRouge {
+  border-color: var(--color-status-danger-border);
+  background: var(--color-status-danger-bg);
+  color: var(--color-status-danger);
+}
+
+// ---------- Caisse ----------
+.caisseGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: var(--space-4);
+  align-items: start;
+
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.recap {
+  position: sticky;
+  top: var(--space-4);
+}
+
+.totalLigne {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+
+  & + .totalLigne { border-top: 1px dashed var(--color-border-subtle); }
+
+  .label { color: var(--color-text-secondary); }
+}
+
+.totalPrincipal {
+  font-size: var(--font-size-h3);
+  font-weight: var(--font-weight-bold);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-style: normal;
+}
+
+.boutonsPaiement {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+
+  @media (max-width: 520px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.acteLigne {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+
+  .prix {
+    margin-left: auto;
+    white-space: nowrap;
+  }
+}
+
+// ---------- Pharmacie ----------
+.pharmaGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+
+  @media (max-width: 980px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.carteOrdonnance {
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  background: var(--color-bg-surface);
+
+  & + .carteOrdonnance { margin-top: var(--space-3); }
+
+  &.delivree {
+    opacity: 0.55;
+    border-style: dashed;
+  }
+}
+
+.ligneMed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--color-border-subtle);
+
+  .nomMed { font-weight: var(--font-weight-semibold); }
+  .prix { margin-left: auto; white-space: nowrap; }
+}
+
+// ---------- Consultation ----------
+.autosave {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-body-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.prescriptionLigne {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) 110px 90px minmax(0, 2fr) auto;
+  gap: var(--space-2);
+  align-items: start;
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+
+  @media (max-width: 760px) {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.stockInline {
+  font-size: var(--font-size-body-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.alternative {
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  border: 1px dashed var(--color-status-warning-border);
+  background: var(--color-status-warning-bg);
+  color: var(--color-status-warning);
+  font-size: var(--font-size-body-sm);
+}
+
+// ---------- Divers ----------
+.kpiGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-3);
+}
+
+.kpi {
+  .valeur {
+    font-size: var(--font-size-h2);
+    font-weight: var(--font-weight-bold);
+    font-variant-numeric: tabular-nums;
+  }
+  .libelle {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-body-sm);
+  }
+}
+
+.sectionTriage {
+  margin-top: var(--space-4);
+}
+
+.actionsBas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}

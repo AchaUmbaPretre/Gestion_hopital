@@ -37,6 +37,17 @@ const Factures = lazy(() => import('../../pages/factures/Factures'));
 const Paiement = lazy(() => import('../../pages/paiement/Paiement'));
 const Rdv = lazy(() => import('../../pages/rdv/Rdv'));
 
+// ---------- Écrans cœur RDC (prototype — brief RDC 2026) ----------
+// Non destructif : les 20 routes héritées restent intactes ; le
+// nouveau parcours métier RDC vit sous /rdc/* (accueil, patients,
+// caisse, consultation, pharmacie) — voir docs/RDC_BUSINESS_LOGIC.md
+// et docs/MIGRATION_PLAN.md pour la bascule finale.
+const AccueilRDC = lazy(() => import('../../pages/rdc/AccueilRDC'));
+const PatientsRDC = lazy(() => import('../../pages/rdc/PatientsRDC'));
+const CaisseRDC = lazy(() => import('../../pages/rdc/CaisseRDC'));
+const ConsultationRDC = lazy(() => import('../../pages/rdc/ConsultationRDC'));
+const PharmacieRDC = lazy(() => import('../../pages/rdc/PharmacieRDC'));
+
 /** Garde d'authentification — parité avec l'ancien SecureRoute. */
 function RequireAuth({ children }: { children: ReactNode }) {
   const user = useSelector((state: { user?: { currentUser?: unknown } }) => state.user?.currentUser);
@@ -78,6 +89,12 @@ export function AppRouter() {
         { path: 'factures', element: lazyPage(Factures) },
         { path: 'paiement', element: lazyPage(Paiement) },
         { path: 'liste_rdv', element: lazyPage(Rdv) },
+        // ---- Parcours RDC (prototype) ----
+        { path: 'rdc', element: lazyPage(AccueilRDC) },
+        { path: 'rdc/patients', element: lazyPage(PatientsRDC) },
+        { path: 'rdc/caisse', element: lazyPage(CaisseRDC) },
+        { path: 'rdc/consultation', element: lazyPage(ConsultationRDC) },
+        { path: 'rdc/pharmacie', element: lazyPage(PharmacieRDC) },
       ],
     },
     { path: '/login', element: lazyPage(Login) },

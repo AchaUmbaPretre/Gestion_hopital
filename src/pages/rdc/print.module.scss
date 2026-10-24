@@ -1,0 +1,175 @@
+// ============================================================
+// Documents imprimables RDC (reçu A4, ordonnance A5, carnet).
+// Contrairement au reste de l'UI, CES classes sont pensées pour
+// l'impression : Arial (var --font-print), noir sur blanc,
+// bordures simples imprimables même en niveaux de gris.
+// Le pattern .print-zone (typography.scss) masque l'interface.
+// ============================================================
+
+.doc {
+  font-family: var(--font-print);
+  color: #000;
+  background: #fff;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: var(--space-4);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+// Ordonnance A5 : compacte, posologie en gras (info vitale).
+.docA5 {
+  max-width: 460px;
+  font-size: 13px;
+}
+
+.docHeader {
+  text-align: center;
+  border-bottom: 2px solid #000;
+  padding-bottom: 8px;
+  margin-bottom: 12px;
+
+  .hopital {
+    font-size: 16px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .dept {
+    font-size: 12px;
+  }
+}
+
+.docTitre {
+  text-align: center;
+  font-weight: 700;
+  font-size: 15px;
+  text-transform: uppercase;
+  margin: 10px 0;
+  letter-spacing: 0.06em;
+}
+
+.docGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px 16px;
+  margin-bottom: 10px;
+
+  .champ .label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #444;
+  }
+
+  .champ .valeur {
+    font-weight: 700;
+    font-size: 13px;
+  }
+}
+
+.docTable {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0;
+
+  th, td {
+    border: 1px solid #000;
+    padding: 5px 8px;
+    text-align: left;
+    font-size: 12px;
+  }
+
+  th {
+    background: #eee;
+    font-weight: 700;
+  }
+
+  td.num, th.num { text-align: right; white-space: nowrap; }
+}
+
+.docTotaux {
+  margin-left: auto;
+  width: 260px;
+
+  .ligne {
+    display: flex;
+    justify-content: space-between;
+    padding: 3px 0;
+
+    &.fort {
+      border-top: 2px solid #000;
+      margin-top: 4px;
+      padding-top: 6px;
+      font-weight: 700;
+      font-size: 14px;
+    }
+  }
+}
+
+// Mention légale (exonération / urgence vitale) : encadrée.
+.docMention {
+  border: 2px solid #000;
+  padding: 8px 10px;
+  margin: 10px 0;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.docNote {
+  font-size: 11px;
+  color: #333;
+  margin: 6px 0;
+}
+
+.posologie {
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.docSignature {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 28px;
+  font-size: 12px;
+
+  .sig {
+    text-align: center;
+    min-width: 200px;
+
+    .nom {
+      margin-top: 34px;
+      border-top: 1px solid #000;
+      padding-top: 4px;
+      font-weight: 700;
+    }
+  }
+}
+
+.docFooter {
+  margin-top: 14px;
+  border-top: 1px solid #000;
+  padding-top: 6px;
+  font-size: 10px;
+  color: #333;
+  text-align: center;
+}
+
+// Aperçu à l'écran (dans le Modal) : fond neutre + ombre papier.
+.apercuWrap {
+  background: var(--color-bg-inset);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  display: flex;
+  justify-content: center;
+
+  .doc {
+    background: #fff;
+    border: 1px solid var(--color-border-default);
+    box-shadow: var(--shadow-md);
+    max-height: 60vh;
+    overflow: auto;
+  }
+}

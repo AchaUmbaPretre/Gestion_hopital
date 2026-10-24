@@ -1,0 +1,348 @@
+// ============================================================
+// TYPOGRAPHIE RDC — couche conformité contexte congolais (HGR)
+// Brief RDC Partie 2 : lisibilité prioritaire, écrans médiocres,
+// personnel peu formé au numérique, documents imprimés (carnets,
+// factures), français avec accents, PAS d'italique sur les infos
+// critiques, corps >= 16px, interligne >= 1.5, contraste AA (AAA
+// visé sur les données médicales).
+//
+// PILE (auto-hébergée via @fontsource — foundation/fonts.ts,
+// zéro CDN, offline-first) :
+//   Corps      : Inter        -> fallback system-ui, Arial
+//   Titres     : Inter (600/700) — pas de graisse < 400
+//   Données    : JetBrains Mono (IDs patients, dossiers, montants,
+//                posologies — évite les confusions 0/O et 1/l)
+//   Impression : Arial / Helvetica (universel, lisible sur papier)
+//
+// MÉCANISME DE SURCHARGE (non destructif) :
+//   Ce fichier est importé DERNIER (src/index.js, après
+//   reset.scss). Il redéclare les CSS custom properties
+//   typographiques avec les valeurs RDC -> toute l'application
+//   (design system + AntD + pages héritées) monte à 16px sans
+//   qu'aucun composant ne soit modifié.
+//
+// Mode sombre : volontairement NON traité ici — le mode clair
+// est le standard hospitalier (brief RDC Partie 5). Les tokens
+// sémantiques de couleur restent ceux de tokens/semantic.scss.
+// ============================================================
+
+// ------------------------------------------------------------
+// MIXINS — à @use/@import dans les feuilles de composants
+// (documentation d'usage ; les écrans consomment surtout les
+// custom properties directement)
+// ------------------------------------------------------------
+@mixin typo-display {
+  font-size: var(--font-size-display);
+  line-height: var(--line-height-tight);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -0.01em;
+}
+
+@mixin typo-h1 {
+  font-size: var(--font-size-h1);
+  line-height: var(--line-height-tight);
+  font-weight: var(--font-weight-bold);
+}
+
+@mixin typo-h2 {
+  font-size: var(--font-size-h2);
+  line-height: var(--line-height-snug);
+  font-weight: var(--font-weight-semibold);
+}
+
+@mixin typo-h3 {
+  font-size: var(--font-size-h3);
+  line-height: var(--line-height-snug);
+  font-weight: var(--font-weight-semibold);
+}
+
+@mixin typo-h4 {
+  font-size: var(--font-size-h4);
+  line-height: var(--line-height-snug);
+  font-weight: var(--font-weight-semibold);
+}
+
+@mixin typo-body {
+  font-size: var(--font-size-body); // 16px — MINIMUM absolu
+  line-height: var(--line-height-normal); // 1.5
+  font-weight: var(--font-weight-regular);
+}
+
+@mixin typo-body-lg {
+  font-size: var(--font-size-body-lg); // 18px — consignes importantes
+  line-height: var(--line-height-normal);
+  font-weight: var(--font-weight-regular);
+}
+
+@mixin typo-caption {
+  font-size: var(--font-size-caption); // 12px — métadonnées JAMAIS critiques
+  line-height: var(--line-height-snug);
+  font-weight: var(--font-weight-medium);
+}
+
+@mixin typo-overline {
+  font-size: var(--font-size-overline);
+  line-height: var(--line-height-snug);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+// Données médicales / IDs / montants : mono + chiffres tabulaires
+// (tabular-nums = largeur de chiffre fixe : les colonnes de
+// montants FC/USD restent alignées, zéro erreur de lecture).
+@mixin font-data {
+  font-family: var(--font-family-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'zero' 1; // 0 barré -> distingue 0/O
+}
+
+// Montants FC/USD : même traitement + graisse lisible.
+// RÈGLE : jamais d'italique sur un montant.
+@mixin typo-amount {
+  @include font-data;
+  font-weight: var(--font-weight-semibold);
+  font-style: normal; // pas d'italique (infos critiques)
+}
+
+// ------------------------------------------------------------
+// TOKENS TYPOGRAPHIQUES RDC (surchargent tokens/primitive.scss)
+// ------------------------------------------------------------
+:root {
+  // --- Piles de polices (nomenclature du brief RDC) ---
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'Courier New', monospace;
+  --font-print: Arial, Helvetica, sans-serif;
+
+  // Réalignement des tokens historiques du design system sur la
+  // pile RDC (le reset.scss consomme --font-family-ui).
+  --font-family-ui: var(--font-sans);
+  --font-family-mono: var(--font-mono);
+
+  // --- Échelle des tailles (corps >= 16px, RDC Partie 2.3) ---
+  // Titres : conservés proches de l'échelle existante.
+  --font-size-display: 2.25rem;   // 36px — héros (3 boutons accueil)
+  --font-size-h1:       1.75rem;  // 28px
+  --font-size-h2:       1.5rem;   // 24px
+  --font-size-h3:       1.25rem;  // 20px
+  --font-size-h4:       1.125rem; // 18px
+  --font-size-h5:       1rem;     // 16px
+  --font-size-h6:       1rem;     // 16px — plus de titre sous le corps
+  --font-size-body-lg:  1.125rem; // 18px — consignes, boutons d'action
+  --font-size-body:     1rem;     // 16px — CORPS (était 14px, RDC exige >= 16)
+  --font-size-body-sm:  0.875rem; // 14px — infos secondaires (desktop uniquement)
+  --font-size-caption:  0.75rem;  // 12px — métadonnées NON critiques
+  --font-size-overline: 0.75rem;  // 12px — était 11px, remonté pour liseuses médiocres
+
+  // --- Interlignes (>= 1.5 pour le corps) ---
+  --line-height-tight:   1.2;
+  --line-height-snug:    1.375;
+  --line-height-normal:  1.5;
+  --line-height-relaxed: 1.625;
+
+  // --- Graisses (jamais light/300 sur petit écran) ---
+  --font-weight-regular:  400;
+  --font-weight-medium:   500;
+  --font-weight-semibold: 600;
+  --font-weight-bold:     700;
+
+  // --- Letter-spacing ---
+  --tracking-normal: 0;
+  --tracking-wide: 0.02em;
+  --tracking-overline: 0.08em;
+}
+
+// ------------------------------------------------------------
+// RÈGLE MOBILE (RDC 2.3) : "Taille corps minimum : 16px (jamais
+// en dessous sur mobile)". Sur <= 640px, les tailles secondaires
+// remontent à 16px ; seules les métadonnées non critiques
+// (caption) peuvent rester à 13px.
+// ------------------------------------------------------------
+@media (max-width: 640px) {
+  :root {
+    --font-size-body-sm: 1rem;     // 14 -> 16px sur mobile
+    --font-size-caption: 0.8125rem; // 12 -> 13px (métadonnées)
+    --font-size-overline: 0.8125rem;
+    --font-size-display: 2rem;     // héros compact
+    --font-size-h1: 1.5rem;
+    --font-size-h2: 1.375rem;
+  }
+}
+
+// ------------------------------------------------------------
+// BASE — s'applique globalement (importé après reset.scss)
+// ------------------------------------------------------------
+body {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-normal);
+  font-weight: var(--font-weight-regular);
+  // Le français avec accents bénéficie du kerning Inter.
+  font-feature-settings: 'kern' 1;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-sans);
+  // Jamais de graisse < 600 sur les titres (lisibilité écran bas de gamme).
+  font-weight: var(--font-weight-semibold);
+}
+
+// Pas d'italique par défaut : le brief RDC recommande de l'éviter
+// (lisibilité, faux italic synthétique moche sur polices non
+// italiques comme Inter/JetBrains Mono).
+i, em {
+  font-style: normal;
+}
+
+// ------------------------------------------------------------
+// UTILITAIRES — classes globales consommables partout
+// ------------------------------------------------------------
+.font-data {
+  @include font-data;
+}
+
+.font-print {
+  font-family: var(--font-print);
+}
+
+.amount {
+  @include typo-amount;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+.text-overline {
+  @include typo-overline;
+}
+
+.text-caption {
+  @include typo-caption;
+  color: var(--color-text-secondary);
+}
+
+// Infos critiques (posologie, montants, allergie) : jamais
+// d'italique, même si un style parent tente d'en appliquer.
+.text-critical {
+  font-style: normal !important;
+}
+
+// ------------------------------------------------------------
+// IMPRESSION — RDC Partie 4.3
+//   - Arial, noir sur blanc (lisible sur papier bon marché,
+//     cartouches usées, photocopie de photocopie)
+//   - Ordonnance A5, facture A4, fiche carnet A4
+//   - Pattern .print-zone : seul le document imprimable sort ;
+//     toute l'interface (.no-print) est masquée.
+// ------------------------------------------------------------
+.print-only {
+  display: none;
+}
+
+@media print {
+  @page {
+    // A4 par défaut ; l'ordonnance A5 est gérée par le driver
+    // d'impression (le contenu .print-ordonnance est compact
+    // et tient sur A5 comme sur A4). Marges larges = imprimantes
+    // à rouleau usées.
+    size: A4 portrait;
+    margin: 12mm;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  body {
+    font-family: var(--font-print);
+    font-size: 12pt;
+    line-height: 1.45;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  // Seul le document sort (pattern visibility : fiable avec les
+  // layouts flex/grid de l'interface).
+  body * {
+    visibility: hidden;
+  }
+
+  .print-zone,
+  .print-zone * {
+    visibility: visible;
+  }
+
+  .print-zone {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    color: #000;
+    font-family: var(--font-print);
+  }
+
+  // Interface masquée à l'impression (boutons, nav, modals).
+  .no-print {
+    display: none !important;
+  }
+
+  // Le design system maison et AntD imprimant en couleurs claires :
+  // tout repasse en noir lisible.
+  .print-zone {
+    * {
+      color: #000 !important;
+      background: transparent !important;
+      border-color: #000 !important;
+      box-shadow: none !important;
+    }
+
+    h1, h2, h3, h4, h5, h6 {
+      font-family: var(--font-print);
+      font-weight: 700;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+
+      th,
+      td {
+        border: 1px solid #000;
+        padding: 6px 8px;
+        text-align: left;
+        vertical-align: top;
+      }
+
+      thead th {
+        border-bottom: 2px solid #000;
+      }
+    }
+  }
+
+  // IDs et montants restent mono à l'impression ? Non : Arial
+  // partout (RDC 2.1 — Arial est le standard universel papier).
+  // La lisibilité tabulaire est conservée via tabular-nums.
+  .print-zone .font-data,
+  .print-zone .amount {
+    font-family: var(--font-print);
+    font-variant-numeric: tabular-nums;
+  }
+
+  // Ordonnance A5 : grille compacte, posologie bien visible.
+  .print-ordonnance {
+    font-size: 11pt;
+
+    .posologie {
+      font-size: 12pt;
+      font-weight: 700; // la posologie est l'info vitale d'une ordonnance
+    }
+  }
+
+  // Éviter les coupures de page au milieu d'une ligne de tableau.
+  .print-zone tr,
+  .print-zone .page-break-avoid {
+    page-break-inside: avoid;
+  }
+}

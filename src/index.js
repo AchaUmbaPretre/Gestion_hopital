@@ -17,6 +17,11 @@ import './design-system/tokens/index.scss';
 // Reset global (box-sizing, typo tokens, focus-visible) — étape 3,
 // remplace le reset Poppins hérité de App.css.
 import './design-system/foundation/reset.scss';
+// Couche typographique RDC (brief 2026) : corps >= 16px, interligne
+// 1.5, pile Inter / JetBrains Mono / Arial (impression), pattern
+// .print-zone (ordonnance A5, facture A4, carnet). Importé en
+// DERNIER pour surcharger les tokens typo par cascade.
+import './design-system/typography.scss';
 // ThemeProvider : dark mode ([data-theme] + prefers-color-scheme).
 import { ThemeProvider } from './app/providers/ThemeProvider';
 // QueryProvider : server state via @tanstack/react-query (étape 3.2).

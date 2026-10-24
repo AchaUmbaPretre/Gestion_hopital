@@ -1,123 +1,156 @@
-# Plan de migration — Refonte UI/UX Gestion Hôpital
+# Plan de migration — Refonte RDC de Gestion Hôpital (v2)
 
-> Translation incrémentale de l'application existante (React CRA + Redux
-> Toolkit + Ant Design + Sass) vers la plateforme "senior-grade".
-> **Principe cardinal : aucun big bang.** Chaque étape livre une app
-> fonctionnelle, committable écran par écran.
+> **v2 — Cadrage RDC (remplace la v1 orientée SaaS occidental).**
+> La v1 (fondations design system, shell, DataTable/Form) reste livrée et
+> consultable dans l'historique git (commit `5aec9be`) ; ses briques
+> techniques restent valables. Ce document réoriente l'ordre et le contenu
+> des phases vers la **réalité métier des HGR en RDC** :
+> réalisation du parcours de soins réel, résilience offline, simplicité ≤ 3 clics.
+>
+> **Principe cardinal inchangé : aucun big bang.** Chaque phase livre une app
+> fonctionnelle, committable module par module. Le backend `api_hopital`
+> n'est **pas modifié** ; les gaps API sont listés au §Gaps backend.
 
-## État des lieux (audit express — Phase 0)
+## Ce qui change par rapport à la v1
+
+| Retiré (v1, non pertinent RDC) | Remplacé par |
+|---|---|
+| Command Palette ⌘K | Boutons visibles + recherche patient unique |
+| Dark mode prioritaire | Mode clair standard (dark = bonus conservé via tokens) |
+| Widgets dashboard drag & drop | KPI fixes et clairs (écran Accueil) |
+| Progressive disclosure poussé | Tout visible d'un coup ; sections pliables ouvertes par défaut |
+| Animations framer-motion poussées | Transitions sobres ≤ 150 ms, feedback immédiat |
+| Intégrations email/SMS | Champ « Téléphone » simple |
+
+| Ajouté (RDC) | Où |
+|---|---|
+| Bidevise FC/USD, taux paramétrable | Caisse + tous les montants |
+| Urgence vitale — paiement différé tracé (arrêté n°1250/2025) | Accueil/Triage + Caisse |
+| Mutuelles (% couverture, ticket modérateur) + exonérations/FSS | Patients + Caisse |
+| Triage 4 niveaux (Rouge/Orange/Jaune/Vert) | Accueil/Triage |
+| Mode offline (auto-save 30 s, indicateur réseau, PWA) | Tous les écrans |
+| Recherche par téléphone, insensible aux accents | Patients |
+| Impression carnet (A4), ordonnance (A5), facture (A4), ticket | pattern `.print-zone` |
+| Alertes rupture de stock + alternatives thérapeutiques | Pharmacie |
+
+## État des lieux
 
 | Sujet | Constat | Action |
-|-------|---------|--------|
-| Bundle | main.js = 2.36 MB (696 KB gzip), zéro code splitting | Route-based lazy loading (étape 4) |
-| TypeScript | 0 % — tout en .jsx | Nouveau code en .tsx strict, cohabitation (ADR-002) |
-| Data layer | Services axios isolés + Redux global, interceptor JWT bugué (`header:` au lieu de `headers:` dans `src/config.js`) | React Query (étape 3.2) + fix interceptor |
-| Styles | SCSS globaux par page, valeurs magiques | CSS Modules + tokens, migration par module |
-| UI libs | antd 5 + react-select + react-toastify | Remplacement progressif par le design system maison |
-| Bugs préexistants | `ListeRdv.jsx` : fonctions non définies (corrigé — stubs documentés) ; `index.html` lang="en" (corrigé) | — |
-| Backend RDV | Pas de route DELETE (noté pour l'équipe backend) | Hors périmètre frontend |
+|---|---|---|
+| Fondations design system | ✅ livrées (tokens 3 niveaux, 10 atoms, ThemeProvider, polices auto-hébergées, 105 tests) | conservées |
+| Shell applicatif | ✅ livré (Sidebar rôles, TopBar, ⌘K, layouts, router lazy, main 158 KB gzip vs 696 KB) | ⌘K retiré en phase 1 ; sidebar simplifiée en phase 7 |
+| DataTable + Form system | ✅ livrés | réutilisés par les modules |
+| **Prototype RDC** | ✅ **livré (phase 0)** : `typography.scss` + 5 écrans cœur sous `/rdc/*` + docs/RDC_BUSINESS_LOGIC.md | validation terrain avant bascule |
+| Backend | gelé ; patients/médicaments/factures/paiements branchables ; gaps mutuelle/exonération/triage/bidevise/seuils | voir §Gaps backend |
+| Offline | auto-save localStorage + store persisté (prototype) | Workbox + IndexedDB en phase 1 |
 
-## Fondations livrées (Étape 1 & 2 — FAIT)
+## Phase 0 — Prototype des 5 écrans cœur RDC ✅ (FAIT)
 
-- [x] Design tokens 3 niveaux + dark mode ([data-theme] + prefers-color-scheme)
-- [x] 10 atoms : Button, IconButton, Input, Select, Badge, Tag, Avatar, Spinner, Skeleton, Tooltip
-- [x] ThemeProvider + useTheme + anti-FOUC
-- [x] Polices auto-hébergées (Inter, JetBrains Mono)
-- [x] 52 tests unitaires verts, build de production vert
-- [x] docs/DESIGN_SYSTEM.md + ADRs 0001→0006
+- [x] `src/design-system/typography.scss` : pile Inter/JetBrains Mono/Arial, corps ≥ 16 px, interligne 1.5, pattern `.print-zone` (A4/A5), print Arial noir/blanc.
+- [x] Écran 1 — **Accueil/Triage « 3 boutons »** (`/rdc`) : Urgence (triage 4 niveaux + urgence vitale tracée), Consultation, Pharmacie ; KPI fixes ; alertes stock.
+- [x] Écran 2 — **Recherche + création rapide patient** (`/rdc/patients`) : autocomplete ≥ 2 car. (debounce 250 ms, nom/prénom/téléphone/dossier, sans accents), création inline, mutuelle/exonération, fiche carnet imprimable.
+- [x] Écran 3 — **Caisse en un écran** (`/rdc/caisse`) : actes cochés, FC+USD simultanés (taux paramétrable), mutuelle + ticket modérateur, Payé totalité / Acompte / Exonéré / Urgence vitale (motif obligatoire + badge « Prise en charge autorisée »), reçu A4.
+- [x] Écran 4 — **Consultation mode crayon** (`/rdc/consultation`) : 5 sections pliables, prescriptions avec stock live + alternative si rupture, auto-save 30 s + restauration, « Enregistrer et imprimer l'ordonnance » → file pharmacie.
+- [x] Écran 5 — **Pharmacie Scan & Go** (`/rdc/pharmacie`) : file d'attente + vente directe, délivrance = décrément stock + ticket, blocage rupture + substitution 1 clic.
+- [x] Routes `/rdc/*` branchées **additivement** (les 20 routes héritées intactes) ; TS strict zéro `any` ; build + 105 tests verts.
 
-## Étape 3 — Layout global & shell applicatif
+**Règle de validation** : faire tourner le prototype avec le personnel (secrétaire, caissier, infirmier) avant toute bascule — chaque écran doit passer le test « 3 clics / 30 s » et le test 3G simulé (throttling Chrome DevTools).
 
-1. **Molecules** : FormField, SearchBar, StatCard, EmptyState, ConfirmDialog,
-   Toast (remplace react-toastify), Pagination, FilterBar, Breadcrumb.
-2. **Organisms** : Sidebar rétractable (persistée localStorage), TopBar
-   (menu utilisateur + toggle dark mode + NotificationCenter), **CommandPalette
-   ⌘K** (recherche globale patients/docteurs/factures + actions rapides).
-3. **Templates** : DashboardLayout, AuthLayout, DetailLayout, FormLayout.
-4. **Motion** : ajout de `framer-motion` (≈ 30 KB gzip, justifié) — transitions
-   de page fade+slide 8px, springs listes (stiffness 300 / damping 30).
-5. **Router** : routes centralisées + React.lazy par page + Suspense skeletons.
+## Phase 1 — Fondations techniques RDC (offline & réseau)
 
-Livrable : shell de navigation complet autour des pages existantes (aucune
-page cassée).
+1. **PWA offline-first** : Workbox (precache app shell + runtime cache API), manifest, IndexedDB via **Dexie** (patients récents, files d'attente, brouillons), **Background Sync** pour les mutations en attente (file d'écriture différée avec statut « en attente de synchronisation »).
+2. **Résilience réseau** : interceptor axios — timeout 8 s, retry ×3 backoff exponentiel, compression activée ; batch de requêtes (10 patients/requête).
+3. **Data layer** : React Query pour TOUT le server state (keys `['patients','list',filters]`, `['patient',id]`, `['stock']`) ; le store mock RDC devient un adapter Dexie/React Query **sans changer les écrans**.
+4. **Retrait ⌘K** + simplification de la navigation (boutons géants de l'accueil = hub).
+5. Consolidation tokens : variables RDC (bidevise, triage) dans `design-system/tokens/`.
 
-## Étape 4 — DataTable générique + Form system
+Backend requis : aucun. Risque : IndexedDB quota — mitigation : LRU sur patients récents. Acceptation : l'app démarre et permet triage + consultation + facturation **100 % hors ligne** ; resynchronisation automatique au retour du réseau.
 
-1. **DataTable** : colonnes configurables (persistées), tri multi-colonnes,
-   filtres chips sauvegardés en URL, sélection multiple + actions bulk,
-   export CSV/PDF/Excel, densité (compact/normal/comfortable), virtual
-   scrolling `react-window` > 200 rows, skeleton rows, actions rapides au hover.
-2. **Form system** : `<FormInput>`, `<FormSelect>`, `<FormDatePicker>`,
-   `<FormAutocomplete>` (patients, debounce 250ms), `<FormFileUpload>` ;
-   validation zod inline (debounce 300ms) ; auto-save brouillon
-   (localStorage) ; confirmation d'abandon.
+## Phase 2 — Parcours patient (branchement API réelle)
 
-## Étape 5 — Refonte modules (ordre impératif)
+Remplace : `pages/patient/*` (liste, formulaire). Branchement : `GET/POST /patients` existants.
 
-| # | Module | Points clés |
-|---|--------|-------------|
-| 5.1 | **Auth / Login** | AuthLayout, validation zod, états loading/error, redirection |
-| 5.2 | **Dashboard** | KPI cards, graphiques Chart.js lazy, actions rapides, timeline du jour, widgets par rôle |
-| 5.3 | **Patients** | Liste (DataTable) + **fiche 360°** : header sticky (allergies en badges rouges), onglets, timeline médicale, panneau alertes cliniques |
-| 5.4 | **RDV** | react-big-calendar lazy (vues J/S/M/Agenda), créneau → modal pré-remplie, code couleur par médecin ; demander DELETE RDV au backend |
-| 5.5 | **Consultations** | Fiche consultation, auto-save, mode crayon sur la fiche détail |
-| 5.6 | **Ordonnances** | Sélecteur de médicaments + posologie, impression PDF |
-| 5.7 | **Laboratoire** | Prescriptions, transmissions, badges de statut |
-| 5.8 | **Pharmacie** | Stock, ordonnances à délivrer |
-| 5.9 | **Factures + Paiements** | Statuts colorés, optimistic update sur paiement, export |
-| 5.10 | **Admissions** | Flux d'admission simplifié |
-| 5.11 | **Statistiques** | Filtres période, graphiques lazy, export |
+1. Recherche serveur (param `q` nom/prénom/tél/dossier) avec cache React Query + filtre local instantané.
+2. Création rapide → `POST /patients` (âge estimé conservé côté UI ; `dateNaissance` optionnelle).
+3. Fiche 360° minimaliste RDC : identité, mutuelle, exonération, historique des passages (consultations + factures existantes).
+4. Impression carnet branchée sur les données réelles.
 
-Chaque module : nouvelle page TSX branchée sur React Query + design system,
-**remplacement de l'ancienne route en un commit** (rollback trivial).
+Critères : retrouver un patient connu en ≤ 3 clics / < 2 s sur 3G ; création d'un nouveau patient en < 30 s.
 
-## Étape 6 — Dark mode + responsive fine-tuning
+## Phase 3 — Caisse & facturation (bidevise, mutuelles, exonérations)
 
-- Bottom-bar mobile, tables → cards empilées, filtres en drawer.
-- Sidebar icons-only (tablette), complète (desktop).
-- Relecture contrastes dark sur chaque module (axe-core).
+Remplace : `pages/factures/*`, `pages/paiement/*`. Branchement : `POST /factures` + `insertFactureDetails` + `POST /paiement`.
 
-## Étape 7 — A11y audit + Lighthouse + tests E2E
+1. Le panier d'actes alimente `factures` + `facture_details` ; chaque encaissement → `paiements` (`methode_paiement` : Espèces FC / Espèces USD / Mobile money).
+2. Acomptes = plusieurs `paiements` sur la même facture ; solde calculé côté UI + affiché.
+3. Mutuelle / exonération / urgence vitale : **dans l'attente des colonnes backend** (voir §Gaps), les traces restent dans la file offline locale ET imprimées sur le reçu — zéro perte d'information.
+4. Recus numérotés `REC-ANNÉE-N°` ; file d'impression locale si imprimante hors ligne.
 
-- axe-core en CI (`@axe-core/react` en dev), correction des violations.
-- Lighthouse ≥ 95 (perf via code splitting : cible < 300 KB gzip initial —
-  baseline actuelle 696 KB).
-- Playwright : parcours patient, consultation, facturation.
-- Test SUS (5 utilisateurs minimum) → objectif ≥ 85.
+Critères : encaissement totalité en 3 clics ; reçu A4 imprimé immédiatement ; traces exonération/urgence exportables (audit).
 
-## Architecture cible (Phase 3.1 du brief)
+## Phase 4 — Consultation & ordonnances
 
-```
-src/
-  design-system/   ✅ créé (tokens, components/atoms, foundation, motion)
-  features/        étape 5 — patients/, consultations/, factures/, …
-  shared/          étape 3-4 — api/ (axios+interceptors), components/,
-                   hooks/ (useDebounce, useMediaQuery, useKeyboard), utils/, layouts/
-  app/             ✅ providers/ créé — router/ + store/ à l'étape 3
-```
+Remplace : `pages/consultation/*`, `pages/ordonnance/*`. Branchement : `POST /consult` + `POST /ordonnance`.
 
-## Règles de cohabitation pendant la migration
+1. Le prototype « mode crayon » conserve son auto-save 30 s ; l'enregistrement écrit en base (ou en file offline).
+2. Prescription : stock réel `GET /pharma` (rafraîchi à l'ouverture) ; alternative thérapeutique au clic tant que le backend n'a pas la colonne `classe` (carte de correspondance embarquée, maintenue côté frontend).
+3. « Enregistrer et imprimer l'ordonnance » = 1 clic → base + file pharmacie + A5.
 
-1. Les pages .jsx existantes **continuent de fonctionner** telles quelles.
-2. Toute nouvelle page/fonctionnalité = .tsx + tokens + atoms.
-3. antd disparaît module par module ; chaque commit retire ses usages.
-4. Redux reste limité à auth/prefs/notifications ; le server state migre
-   vers React Query (`@tanstack/react-query`) — ajout à l'étape 3.2.
-5. redux-persist : PAS de changement de structure du state `user`
-   (compat garantie) ; nouvelles slices = nouvelles clés.
-6. Chaque commit = 1 composant ou 1 écran cohérent + ses tests.
+## Phase 5 — Pharmacie & laboratoire
 
-## Dépendances — journal justifié
+Remplace : `pages/medicament/*`, `pages/labo/*`. Branchement : `GET /pharma`, prescriptions labo existantes.
+
+1. File d'attente ordonnances réelle (jointures `ordonnance`/`patient`/`medicament`) ; délivrance = décrément stock via une mutation idempotente.
+2. Alertes seuils : seuils configurables côté frontend (`localStorage` établissement) tant que la colonne `seuil` n'existe pas ; alternative de substitution idem phase 4.
+3. Vente directe encaissée via la caisse (facture type « Vente directe »).
+4. Labo : résultat de prescription + transmission, badges statut (réutilise DataTable).
+
+## Phase 6 — Hospitalisation, urgences, RDV simplifiés
+
+Remplace : `pages/admission/*`, `pages/traitement/*`, `pages/rdv/*`.
+
+1. Admission : plan des lits simple (grille service/lit/occupation), médecin responsable, acompte → caisse.
+2. Suivi quotidien : constantes (T°, TA, pouls) en 3 champs, historique linéaire.
+3. Sortie : « Clôturer le séjour » → total séjour → facture finale + solde.
+4. RDV : liste simple du jour (react-big-calendar retiré s'il n'est pas utilisé terrain — décision au moment de la phase).
+
+## Phase 7 — Shell final RDC, impression, qualité
+
+1. Sidebar réduite à 5 entrées (Accueil, Patients, Caisse, Consultation, Pharmacie) + gestion (docteurs, services, utilisateurs) pour l'admin ; les anciennes pages restent accessibles en « mode expert » jusqu'à validation.
+2. Retrait définitif des pages .jsx remplacées (un commit par route, rollback trivial).
+3. A11y (axe-core) + Lighthouse ≥ 95 + SUS ≥ 85 (5 utilisateurs) + tests E2E Playwright des 4 parcours critiques (urgence vitale, caisse avec mutuelle, consultation→pharmacie, offline/reprise).
+4. Tests 3G simulés + coupures d'électricité (kill du serveur) systématiques avant release.
+
+## Règles de cohabitation (héritées de la v1, confirmées)
+
+1. Les pages .jsx existantes continuent de fonctionner jusqu'à leur remplacement.
+2. Tout nouveau code = `.tsx` strict, zéro `any`.
+3. Ant Design reste l'**unique** lib UI (aucune lib concurrente) ; le design system maison l'habille via tokens.
+4. Redux limité à auth/notifications ; server state → React Query.
+5. Chaque commit = 1 module cohérent + tests verts (23 suites / 105 tests à ce jour).
+6. `api_hopital` non modifié ; toute évolution backend documentée et négociée séparément.
+
+## Gaps backend (nécessaires aux règles RDC — hors périmètre actuel)
+
+| Règle métier | Donnée manquante |
+|---|---|
+| Bidevise auditable | colonne `taux_fc_usd` sur `paiements` |
+| Mutuelles | tables `mutuelle` + liaison patient (organisme, % couverture, n° adhérent) |
+| Exonération / urgence vitale | colonnes `mode`, `motif`, `autorise_par` sur `factures` |
+| Triage 4 niveaux | table `triage` (niveau, motif, orientation, urgence_vitale) |
+| Alternatives thérapeutiques | colonne `classe_therepeutique` + `seuil` sur `medicament` |
+| Référence patient RDC | colonne `dossier` (INIT-ANNÉE-N°) sur `patient` |
+
+## Journal des dépendances — justifié
 
 | Paquet | Taille | Justification | Statut |
-|--------|--------|---------------|--------|
-| typescript + @types/* | dev only | Brief : TS strict | ✅ installé |
-| @fontsource/inter + jetbrains-mono | ~90 KB woff2 au total (subsets latin) | Auto-hébergé santé/offline (RGPD, réseau hospitalier fermé) vs CDN Google | ✅ installé |
-| @tanstack/react-query | ~13 KB gzip | Server state (brief 3.2) | étape 3 |
-| framer-motion | ~30 KB gzip | Motion design (brief 1.3) | étape 3 |
-| react-window | ~6 KB gzip | Virtual scrolling listes (brief 2.3) | étape 4 |
-| @playwright/test | dev only | E2E (brief 3.5) | étape 7 |
-| storybook 8 | dev only | Visualisation des stories CSF3 déjà écrites | étape 3 (optionnel) |
+|---|---|---|---|
+| typescript + @types/* | dev only | TS strict | ✅ installé |
+| @fontsource/inter + jetbrains-mono | ~90 KB woff2 | Auto-hébergé offline (aucun CDN) | ✅ installé |
+| @tanstack/react-query | ~13 KB gzip | Server state + offline cache | ✅ installé |
+| react-window | ~6 KB gzip | Listes longues | ✅ installé |
+| workbox-* | ~12 KB gzip runtime | PWA offline-first (phase 1) | à installer phase 1 |
+| dexie (+ dexie-react-hooks) | ~25 KB gzip | IndexedDB mutations/patients récents (phase 1) | à installer phase 1 |
+| @playwright/test | dev only | E2E parcours critiques (phase 7) | à installer phase 7 |
 
-Alternative écartée : migration Next.js/Vite — violerait "pas de big bang
-rewrite" (ADR-006).
+Écartées : toute lib UI concurrente d'Ant Design ; Chart.js conservé uniquement si les statistiques restent demandées ; framer-motion conservé pour transitions sobres (retrait possible si poids jugé inutile terrain).
